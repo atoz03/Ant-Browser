@@ -261,6 +261,7 @@ chrome/
 
 - Releases：<https://github.com/black-ant/Ant-Browser/releases>
 - Issues：<https://github.com/black-ant/Ant-Browser/issues>
+- 友链：<https://linux.do/>
 
 ## License
 
