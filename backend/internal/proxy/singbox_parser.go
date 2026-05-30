@@ -18,7 +18,8 @@ func IsSingBoxProtocol(proxyConfig string) bool {
 	// Clash YAML 格式
 	if strings.Contains(l, "type: hysteria2") || strings.Contains(l, "type:hysteria2") ||
 		strings.Contains(l, "type: hysteria") || strings.Contains(l, "type:hysteria") ||
-		strings.Contains(l, "type: tuic") || strings.Contains(l, "type:tuic") {
+		strings.Contains(l, "type: tuic") || strings.Contains(l, "type:tuic") ||
+		strings.Contains(l, "type: anytls") || strings.Contains(l, "type:anytls") {
 		return true
 	}
 	return false
@@ -120,9 +121,65 @@ func parseClashSingBoxNode(src string) (map[string]interface{}, error) {
 		return buildSingBoxHysteria2FromClash(nodeMap)
 	case "tuic":
 		return buildSingBoxTUICFromClash(nodeMap)
+	case "anytls":
+		return buildSingBoxAnyTLSFromClash(nodeMap)
 	default:
 		return nil, fmt.Errorf("不支持的 sing-box 节点类型: %s", nodeType)
 	}
+}
+
+func buildSingBoxAnyTLSFromClash(node map[string]interface{}) (map[string]interface{}, error) {
+	host := getMapString(node, "server")
+	port := getMapInt(node, "port")
+	password := getMapString(node, "password")
+	sni := getMapString(node, "sni")
+	if sni == "" {
+		sni = getMapString(node, "servername")
+	}
+	skipVerify := getMapBool(node, "skip-cert-verify")
+
+	if host == "" || port == 0 {
+		return nil, fmt.Errorf("anytls node info incomplete")
+	}
+
+	tls := map[string]interface{}{
+		"enabled":  true,
+		"insecure": skipVerify,
+	}
+	if sni != "" {
+		tls["server_name"] = sni
+	}
+	if alpnRaw, ok := node["alpn"]; ok {
+		if alpnList := toStringSlice(alpnRaw); len(alpnList) > 0 {
+			tls["alpn"] = alpnList
+		}
+	}
+	if fingerprint := getMapString(node, "client-fingerprint"); fingerprint != "" {
+		tls["utls"] = map[string]interface{}{
+			"enabled":     true,
+			"fingerprint": fingerprint,
+		}
+	}
+
+	out := map[string]interface{}{
+		"type":        "anytls",
+		"tag":         "proxy-out",
+		"server":      host,
+		"server_port": port,
+		"password":    password,
+		"tls":         tls,
+	}
+	if interval := clashDurationSecondsString(node, "idle-session-check-interval"); interval != "" {
+		out["idle_session_check_interval"] = interval
+	}
+	if timeout := clashDurationSecondsString(node, "idle-session-timeout"); timeout != "" {
+		out["idle_session_timeout"] = timeout
+	}
+	if minIdleSession := getMapInt(node, "min-idle-session"); minIdleSession != 0 {
+		out["min_idle_session"] = minIdleSession
+	}
+
+	return out, nil
 }
 
 func buildSingBoxHysteria2FromClash(node map[string]interface{}) (map[string]interface{}, error) {
@@ -225,6 +282,40 @@ func parseBandwidthMbps(s string) int {
 	s = strings.TrimSuffix(s, "M")
 	n, _ := strconv.Atoi(s)
 	return n
+}
+
+func clashDurationSecondsString(node map[string]interface{}, key string) string {
+	v, ok := node[key]
+	if !ok {
+		return ""
+	}
+	switch value := v.(type) {
+	case int:
+		if value <= 0 {
+			return ""
+		}
+		return fmt.Sprintf("%ds", value)
+	case int64:
+		if value <= 0 {
+			return ""
+		}
+		return fmt.Sprintf("%ds", value)
+	case float64:
+		if value <= 0 {
+			return ""
+		}
+		return fmt.Sprintf("%ds", int(value))
+	case string:
+		s := strings.TrimSpace(value)
+		if s == "" || s == "0" {
+			return ""
+		}
+		if _, err := strconv.Atoi(s); err == nil {
+			return s + "s"
+		}
+		return s
+	}
+	return ""
 }
 
 // toStringSlice 将 interface{} 转为 []string
