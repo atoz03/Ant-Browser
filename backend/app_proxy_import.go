@@ -17,6 +17,13 @@ const (
 	clashSubscriptionTimeout  = 25 * time.Second
 )
 
+var clashSubscriptionUserAgents = []string{
+	"clash-verge/2.0 ant-chrome/1.0",
+	"FlClash/v0.8.92 clash-verge Platform/windows",
+	"clash-verge/v2.4.2",
+	"ClashforWindows/0.19.23",
+}
+
 // BrowserProxyFetchClashByURL 拉取 Clash 订阅 URL，并返回可直接导入的 YAML 文本与建议配置。
 func (a *App) BrowserProxyFetchClashByURL(rawURL string) (map[string]interface{}, error) {
 	rawURL = strings.TrimSpace(rawURL)
@@ -33,36 +40,10 @@ func (a *App) BrowserProxyFetchClashByURL(rawURL string) (map[string]interface{}
 		return nil, fmt.Errorf("仅支持 http/https URL")
 	}
 
-	req, err := http.NewRequest(http.MethodGet, parsedURL.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
-	req.Header.Set("User-Agent", "clash-verge/2.0 ant-chrome/1.0")
-	req.Header.Set("Accept", "application/yaml,text/yaml,text/plain,*/*")
-	req.Header.Set("Cache-Control", "no-cache")
-
 	client := &http.Client{
 		Timeout: clashSubscriptionTimeout,
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("拉取订阅失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("拉取订阅失败: HTTP %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxClashSubscriptionBytes+1))
-	if err != nil {
-		return nil, fmt.Errorf("读取订阅内容失败: %w", err)
-	}
-	if len(body) > maxClashSubscriptionBytes {
-		return nil, fmt.Errorf("订阅内容过大（超过 8MB）")
-	}
-
-	content, payload, err := normalizeClashSubscriptionContent(body)
+	content, payload, err := fetchClashSubscriptionWithFallback(client, parsedURL.String())
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +63,55 @@ func (a *App) BrowserProxyFetchClashByURL(rawURL string) (map[string]interface{}
 		"dnsServers":     dnsYAML,
 		"suggestedGroup": suggestedGroup,
 	}, nil
+}
+
+func fetchClashSubscriptionWithFallback(client *http.Client, targetURL string) (string, interface{}, error) {
+	var lastErr error
+	for _, userAgent := range clashSubscriptionUserAgents {
+		content, payload, err := fetchClashSubscriptionWithUserAgent(client, targetURL, userAgent)
+		if err == nil {
+			return content, payload, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("未配置可用的 User-Agent")
+	}
+	return "", nil, fmt.Errorf("拉取订阅失败: %w", lastErr)
+}
+
+func fetchClashSubscriptionWithUserAgent(client *http.Client, targetURL string, userAgent string) (string, interface{}, error) {
+	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+	if err != nil {
+		return "", nil, fmt.Errorf("创建请求失败")
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/yaml,text/yaml,text/plain,*/*")
+	req.Header.Set("Cache-Control", "no-cache")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("网络请求失败")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxClashSubscriptionBytes+1))
+	if err != nil {
+		return "", nil, fmt.Errorf("读取订阅内容失败")
+	}
+	if len(body) > maxClashSubscriptionBytes {
+		return "", nil, fmt.Errorf("订阅内容过大（超过 8MB）")
+	}
+
+	content, payload, err := normalizeClashSubscriptionContent(body)
+	if err != nil {
+		return "", nil, err
+	}
+	return content, payload, nil
 }
 
 func normalizeClashSubscriptionContent(body []byte) (string, interface{}, error) {
