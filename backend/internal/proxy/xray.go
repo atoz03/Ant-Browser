@@ -104,6 +104,9 @@ func RequiresBridge(proxyConfig string, proxies []config.BrowserProxy, proxyId s
 	if IsChainSocks5Proxy(src) {
 		return true
 	}
+	if IsSingBoxProtocol(src) {
+		return false
+	}
 	if strings.HasPrefix(l, "hysteria://") || strings.HasPrefix(l, "hysteria2://") {
 		return false
 	}
