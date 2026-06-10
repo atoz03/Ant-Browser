@@ -10,10 +10,10 @@ import (
 	"ant-chrome/backend/internal/logger"
 )
 
-// ─── Clash 标准测速 URL ───
-// 使用 HTTP 与 Clash 客户端保持一致
+// ─── Mihomo 标准测速 URL ───
+// 与 mihomo-party / mihomo 默认延迟检测保持一致。
 
-const DefaultSpeedTestURL = "http://www.gstatic.com/generate_204"
+const DefaultSpeedTestURL = "https://www.gstatic.com/generate_204"
 
 // SpeedTestConfig 测速参数
 type SpeedTestConfig struct {
@@ -101,5 +101,6 @@ func SpeedTest(
 		return tcpPingFallback(proxyId, resolvedSrc, cfg.TCPTimeout, log)
 	}
 
+	adapter.UnifiedDelay.Store(true)
 	return unifiedDelayTest(proxyId, proxyInstance, testURL, cfg.Timeout)
 }

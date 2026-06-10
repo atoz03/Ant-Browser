@@ -290,12 +290,12 @@ export function BrowserProxyBatchWarmupBridge(arg1, arg2) {
   return window['go']['main']['App']['BrowserProxyBatchWarmupBridge'](arg1, arg2);
 }
 
-export function BrowserProxyCheckIPHealth(arg1) {
-  return window['go']['main']['App']['BrowserProxyCheckIPHealth'](arg1);
+export function BrowserProxyBuildDiagnostic(arg1, arg2) {
+  return window['go']['main']['App']['BrowserProxyBuildDiagnostic'](arg1, arg2);
 }
 
-export function BrowserProxyResolveLocation(arg1) {
-  return window['go']['main']['App']['BrowserProxyResolveLocation'](arg1);
+export function BrowserProxyCheckIPHealth(arg1) {
+  return window['go']['main']['App']['BrowserProxyCheckIPHealth'](arg1);
 }
 
 export function BrowserProxyFetchClashByURL(arg1) {
@@ -314,16 +314,20 @@ export function BrowserProxyListGroups() {
   return window['go']['main']['App']['BrowserProxyListGroups']();
 }
 
+export function BrowserProxyResolveLocation(arg1) {
+  return window['go']['main']['App']['BrowserProxyResolveLocation'](arg1);
+}
+
+export function BrowserProxyTestSpeed(arg1) {
+  return window['go']['main']['App']['BrowserProxyTestSpeed'](arg1);
+}
+
 export function BrowserProxyWarmupBridge(arg1) {
   return window['go']['main']['App']['BrowserProxyWarmupBridge'](arg1);
 }
 
 export function BrowserProxyWarmupBridgeWithConfig(arg1, arg2) {
   return window['go']['main']['App']['BrowserProxyWarmupBridgeWithConfig'](arg1, arg2);
-}
-
-export function BrowserProxyTestSpeed(arg1) {
-  return window['go']['main']['App']['BrowserProxyTestSpeed'](arg1);
 }
 
 export function BrowserRenameTag(arg1, arg2) {

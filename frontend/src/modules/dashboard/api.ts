@@ -38,19 +38,6 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   return { totalInstances: 0, runningInstances: 0, proxyCount: 0, coreCount: 0, memUsedMB: 0, maxProfileLimit: 20, appVersion: 'unknown' }
 }
 
-export async function redeemCDKey(cdkey: string): Promise<{ success: boolean, message?: string }> {
-  const bindings: any = await getBindings()
-  if (bindings?.RedeemCDKey) {
-    try {
-      await bindings.RedeemCDKey(cdkey)
-      return { success: true }
-    } catch (e: any) {
-      return { success: false, message: e.message || '兑换失败' }
-    }
-  }
-  return { success: false, message: '系统 API 未就绪' }
-}
-
 export async function redeemGithubStar(): Promise<{ success: boolean, message?: string }> {
   const bindings: any = await getBindings()
   if (bindings?.RedeemGithubStar) {

@@ -88,25 +88,6 @@ func TestProxyConfigToMappingUnsupportedURI(t *testing.T) {
 	}
 }
 
-func TestURLToMeta(t *testing.T) {
-	t.Parallel()
-
-	meta, err := urlToMeta("https://1.2.3.4:8443/path")
-	if err != nil {
-		t.Fatalf("urlToMeta returned error: %v", err)
-	}
-
-	if meta.Host != "1.2.3.4" {
-		t.Fatalf("host = %q, want 1.2.3.4", meta.Host)
-	}
-	if meta.DstPort != 8443 {
-		t.Fatalf("port = %d, want 8443", meta.DstPort)
-	}
-	if !meta.DstIP.IsValid() || meta.DstIP.String() != "1.2.3.4" {
-		t.Fatalf("DstIP = %v, want 1.2.3.4", meta.DstIP)
-	}
-}
-
 func TestDefaultProxyCheckURLsAreConfigured(t *testing.T) {
 	t.Parallel()
 

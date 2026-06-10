@@ -83,8 +83,6 @@ export function BrowserListPage() {
     savingCore,
     expandModalOpen,
     setExpandModalOpen,
-    cdKey,
-    setCdKey,
     redeeming,
     maxProfileLimit,
     loadCores,
@@ -96,7 +94,6 @@ export function BrowserListPage() {
     handleSaveCore,
     handleDeleteCore,
     handleSetDefaultCore,
-    handleRedeem,
     handleOpenGithubStarGift,
   } = useBrowserListSettings()
   const {
@@ -283,7 +280,6 @@ export function BrowserListPage() {
         onRefresh={() => { void loadProfiles() }}
         onOpenSettings={handleOpenSettings}
         onOpenExpandModal={() => {
-          setCdKey('')
           setExpandModalOpen(true)
           loadQuota()
         }}
@@ -387,9 +383,6 @@ export function BrowserListPage() {
         onCloseExpand={() => setExpandModalOpen(false)}
         profilesCount={profiles.length}
         maxProfileLimit={maxProfileLimit}
-        cdKey={cdKey}
-        onCdKeyChange={setCdKey}
-        onRedeem={handleRedeem}
         redeeming={redeeming}
         onOpenGithubStarGift={handleOpenGithubStarGift}
         copyModal={copyModal}

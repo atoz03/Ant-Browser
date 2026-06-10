@@ -1,5 +1,10 @@
 package backend
 
+import "ant-chrome/backend/internal/proxy"
+
+type ProxyBuildDiagnostic = proxy.ProxyBuildDiagnostic
+type ProxyRuntimeDiagnostic = proxy.ProxyRuntimeDiagnostic
+
 // ProxyValidationResult 代理验证结果
 type ProxyValidationResult struct {
 	Supported bool   `json:"supported"`

@@ -91,6 +91,7 @@ func parseHysteria2URI(node string) (map[string]interface{}, error) {
 	if sni != "" {
 		out["tls"].(map[string]interface{})["server_name"] = sni
 	}
+	applySingBoxTLSClientOptionsFromQuery(q, out["tls"].(map[string]interface{}))
 
 	if obfsPassword != "" {
 		out["obfs"] = map[string]interface{}{
@@ -149,17 +150,7 @@ func buildSingBoxAnyTLSFromClash(node map[string]interface{}) (map[string]interf
 	if sni != "" {
 		tls["server_name"] = sni
 	}
-	if alpnRaw, ok := node["alpn"]; ok {
-		if alpnList := toStringSlice(alpnRaw); len(alpnList) > 0 {
-			tls["alpn"] = alpnList
-		}
-	}
-	if fingerprint := getMapString(node, "client-fingerprint"); fingerprint != "" {
-		tls["utls"] = map[string]interface{}{
-			"enabled":     true,
-			"fingerprint": fingerprint,
-		}
-	}
+	applySingBoxTLSClientOptionsFromClash(node, tls)
 
 	out := map[string]interface{}{
 		"type":        "anytls",
@@ -203,6 +194,7 @@ func buildSingBoxHysteria2FromClash(node map[string]interface{}) (map[string]int
 	if sni != "" {
 		tls["server_name"] = sni
 	}
+	applySingBoxTLSClientOptionsFromClash(node, tls)
 
 	out := map[string]interface{}{
 		"type":        "hysteria2",
@@ -228,6 +220,9 @@ func buildSingBoxHysteria2FromClash(node map[string]interface{}) (map[string]int
 			"password": obfsPassword,
 		}
 	}
+	if congestion := firstNonEmptyMapString(node, "congestion-control", "congestion_controller", "congestion-controller"); congestion != "" {
+		out["congestion_control"] = congestion
+	}
 
 	return out, nil
 }
@@ -238,6 +233,9 @@ func buildSingBoxTUICFromClash(node map[string]interface{}) (map[string]interfac
 	uuid := getMapString(node, "uuid")
 	password := getMapString(node, "password")
 	sni := getMapString(node, "sni")
+	if sni == "" {
+		sni = getMapString(node, "servername")
+	}
 	skipVerify := getMapBool(node, "skip-cert-verify")
 
 	if host == "" || port == 0 {
@@ -252,11 +250,10 @@ func buildSingBoxTUICFromClash(node map[string]interface{}) (map[string]interfac
 		tls["server_name"] = sni
 	}
 
-	// alpn
-	if alpnRaw, ok := node["alpn"]; ok {
-		if alpnList := toStringSlice(alpnRaw); len(alpnList) > 0 {
-			tls["alpn"] = alpnList
-		}
+	applySingBoxTLSClientOptionsFromClash(node, tls)
+	congestionControl := firstNonEmptyMapString(node, "congestion-control", "congestion_controller", "congestion-controller")
+	if congestionControl == "" {
+		congestionControl = "bbr"
 	}
 
 	return map[string]interface{}{
@@ -266,9 +263,56 @@ func buildSingBoxTUICFromClash(node map[string]interface{}) (map[string]interfac
 		"server_port":        port,
 		"uuid":               uuid,
 		"password":           password,
-		"congestion_control": "bbr",
+		"congestion_control": congestionControl,
 		"tls":                tls,
 	}, nil
+}
+
+func applySingBoxTLSClientOptionsFromClash(node map[string]interface{}, tls map[string]interface{}) {
+	if alpnRaw, ok := node["alpn"]; ok {
+		if alpnList := toStringSlice(alpnRaw); len(alpnList) > 0 {
+			tls["alpn"] = alpnList
+		}
+	}
+	if fingerprint := getMapString(node, "client-fingerprint"); fingerprint != "" {
+		tls["utls"] = map[string]interface{}{
+			"enabled":     true,
+			"fingerprint": fingerprint,
+		}
+	}
+}
+
+func applySingBoxTLSClientOptionsFromQuery(query url.Values, tls map[string]interface{}) {
+	if alpn := strings.TrimSpace(query.Get("alpn")); alpn != "" {
+		tls["alpn"] = splitCommaList(alpn)
+	}
+	if fingerprint := firstNonEmptyQueryValue(query, "client-fingerprint", "fingerprint"); fingerprint != "" {
+		tls["utls"] = map[string]interface{}{
+			"enabled":     true,
+			"fingerprint": fingerprint,
+		}
+	}
+}
+
+func firstNonEmptyQueryValue(query url.Values, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(query.Get(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func splitCommaList(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // parseBandwidthMbps 解析带宽字符串，返回 Mbps 整数

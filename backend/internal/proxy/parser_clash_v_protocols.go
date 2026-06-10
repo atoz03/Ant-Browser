@@ -64,38 +64,18 @@ func buildOutboundFromClashVless(node map[string]interface{}) (map[string]interf
 			tlsSettings["serverName"] = sni
 		}
 		tlsSettings["allowInsecure"] = getMapBool(node, "skip-cert-verify")
+		applyClashTLSClientOptions(node, tlsSettings)
 		stream["security"] = "tls"
 		stream["tlsSettings"] = tlsSettings
 	}
 	if network == "ws" {
 		stream["network"] = "ws"
-		ws := map[string]interface{}{}
-		if wsOpts, ok := node["ws-opts"]; ok {
-			if wsMap := toStringMap(wsOpts); wsMap != nil {
-				path := getMapString(wsMap, "path")
-				if path != "" {
-					ws["path"] = path
-				}
-				if headers, ok := wsMap["headers"]; ok {
-					if headerMap := toStringMap(headers); headerMap != nil {
-						if hostH := getMapString(headerMap, "Host"); hostH != "" {
-							ws["headers"] = map[string]interface{}{"Host": hostH}
-						}
-					}
-				}
-			}
-		}
-		stream["wsSettings"] = ws
+		stream["wsSettings"] = buildClashWSSettings(node)
 	}
 	if network == "grpc" {
 		stream["network"] = "grpc"
-		if grpcOpts, ok := node["grpc-opts"]; ok {
-			if grpcMap := toStringMap(grpcOpts); grpcMap != nil {
-				serviceName := getMapString(grpcMap, "grpc-service-name")
-				if serviceName != "" {
-					stream["grpcSettings"] = map[string]interface{}{"serviceName": serviceName}
-				}
-			}
+		if grpc := buildClashGRPCSettings(node); len(grpc) > 0 {
+			stream["grpcSettings"] = grpc
 		}
 	}
 	if len(stream) > 0 {
@@ -142,38 +122,18 @@ func buildOutboundFromClashVmess(node map[string]interface{}) (map[string]interf
 			tlsSettings["serverName"] = sni
 		}
 		tlsSettings["allowInsecure"] = getMapBool(node, "skip-cert-verify")
+		applyClashTLSClientOptions(node, tlsSettings)
 		stream["security"] = "tls"
 		stream["tlsSettings"] = tlsSettings
 	}
 	if network == "ws" {
 		stream["network"] = "ws"
-		ws := map[string]interface{}{}
-		if wsOpts, ok := node["ws-opts"]; ok {
-			if wsMap := toStringMap(wsOpts); wsMap != nil {
-				path := getMapString(wsMap, "path")
-				if path != "" {
-					ws["path"] = path
-				}
-				if headers, ok := wsMap["headers"]; ok {
-					if headerMap := toStringMap(headers); headerMap != nil {
-						if hostH := getMapString(headerMap, "Host"); hostH != "" {
-							ws["headers"] = map[string]interface{}{"Host": hostH}
-						}
-					}
-				}
-			}
-		}
-		stream["wsSettings"] = ws
+		stream["wsSettings"] = buildClashWSSettings(node)
 	}
 	if network == "grpc" {
 		stream["network"] = "grpc"
-		if grpcOpts, ok := node["grpc-opts"]; ok {
-			if grpcMap := toStringMap(grpcOpts); grpcMap != nil {
-				serviceName := getMapString(grpcMap, "grpc-service-name")
-				if serviceName != "" {
-					stream["grpcSettings"] = map[string]interface{}{"serviceName": serviceName}
-				}
-			}
+		if grpc := buildClashGRPCSettings(node); len(grpc) > 0 {
+			stream["grpcSettings"] = grpc
 		}
 	}
 	if len(stream) > 0 {

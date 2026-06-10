@@ -2,7 +2,7 @@
 import { toast } from '../../../../shared/components'
 import { PROJECT_GITHUB_URL } from '../../../../config/links'
 import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime'
-import { fetchDashboardStats, redeemCDKey, redeemGithubStar, reloadConfig } from '../../../dashboard/api'
+import { fetchDashboardStats, redeemGithubStar, reloadConfig } from '../../../dashboard/api'
 import type { BrowserCore, BrowserCoreInput, BrowserSettings } from '../../types'
 import {
   deleteBrowserCore,
@@ -40,7 +40,6 @@ export function useBrowserListSettings() {
   const [savingCore, setSavingCore] = useState(false)
 
   const [expandModalOpen, setExpandModalOpen] = useState(false)
-  const [cdKey, setCdKey] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const [maxProfileLimit, setMaxProfileLimit] = useState(20)
 
@@ -142,27 +141,12 @@ export function useBrowserListSettings() {
     loadCores()
   }
 
-  const handleRedeem = async () => {
-    if (!cdKey.trim()) return
-    setRedeeming(true)
-    const result = await redeemCDKey(cdKey.trim())
-    setRedeeming(false)
-    if (result.success) {
-      toast.success('兑换成功！此名额已到账')
-      setCdKey('')
-      loadQuota()
-    } else {
-      toast.error(result.message || '兑换失败')
-    }
-  }
-
   const handleClaimStarGift = async () => {
     setRedeeming(true)
     const starRes = await redeemGithubStar()
     setRedeeming(false)
     if (starRes.success) {
       toast.success('感谢您的支持！已额外赠送 50 个永久额度！')
-      setCdKey('')
       loadQuota()
     } else {
       toast.error(starRes.message || '领取失败')
@@ -196,8 +180,6 @@ export function useBrowserListSettings() {
     savingCore,
     expandModalOpen,
     setExpandModalOpen,
-    cdKey,
-    setCdKey,
     redeeming,
     maxProfileLimit,
     loadCores,
@@ -209,7 +191,6 @@ export function useBrowserListSettings() {
     handleSaveCore,
     handleDeleteCore,
     handleSetDefaultCore,
-    handleRedeem,
     handleOpenGithubStarGift,
   }
 }

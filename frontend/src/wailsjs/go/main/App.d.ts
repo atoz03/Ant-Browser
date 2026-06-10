@@ -5,6 +5,7 @@ import {backend} from '../models';
 import {backup} from '../models';
 import {config} from '../models';
 import {browser} from '../models';
+import {proxy} from '../models';
 import {logger} from '../models';
 import {launchcode} from '../models';
 import {time} from '../models';
@@ -153,9 +154,9 @@ export function BrowserProxyBatchTestSpeed(arg1:Array<string>,arg2:number):Promi
 
 export function BrowserProxyBatchWarmupBridge(arg1:Array<string>,arg2:number):Promise<Array<backend.ProxyBridgeWarmupResult>>;
 
-export function BrowserProxyCheckIPHealth(arg1:string):Promise<backend.ProxyIPHealthResult>;
+export function BrowserProxyBuildDiagnostic(arg1:string,arg2:string):Promise<proxy.ProxyBuildDiagnostic>;
 
-export function BrowserProxyResolveLocation(arg1:string):Promise<backend.ProxyLocationResolveResult>;
+export function BrowserProxyCheckIPHealth(arg1:string):Promise<backend.ProxyIPHealthResult>;
 
 export function BrowserProxyFetchClashByURL(arg1:string):Promise<Record<string, any>>;
 
@@ -165,11 +166,13 @@ export function BrowserProxyListByGroup(arg1:string):Promise<Array<config.Browse
 
 export function BrowserProxyListGroups():Promise<Array<string>>;
 
+export function BrowserProxyResolveLocation(arg1:string):Promise<backend.ProxyLocationResolveResult>;
+
+export function BrowserProxyTestSpeed(arg1:string):Promise<backend.ProxyTestResult>;
+
 export function BrowserProxyWarmupBridge(arg1:string):Promise<backend.ProxyBridgeWarmupResult>;
 
 export function BrowserProxyWarmupBridgeWithConfig(arg1:string,arg2:string):Promise<backend.ProxyBridgeWarmupResult>;
-
-export function BrowserProxyTestSpeed(arg1:string):Promise<backend.ProxyTestResult>;
 
 export function BrowserRenameTag(arg1:string,arg2:string):Promise<void>;
 

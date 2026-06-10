@@ -29,30 +29,14 @@ func buildOutboundFromClashTrojan(node map[string]interface{}) (map[string]inter
 			"allowInsecure": skipVerify,
 		},
 	}
+	applyClashTLSClientOptions(node, stream["tlsSettings"].(map[string]interface{}))
 	if network == "ws" {
 		stream["network"] = "ws"
-		ws := map[string]interface{}{}
-		if wsOpts, ok := node["ws-opts"]; ok {
-			if wsMap := toStringMap(wsOpts); wsMap != nil {
-				if path := getMapString(wsMap, "path"); path != "" {
-					ws["path"] = path
-				}
-				if headers := toStringMap(wsMap["headers"]); headers != nil {
-					if h := getMapString(headers, "Host"); h != "" {
-						ws["headers"] = map[string]interface{}{"Host": h}
-					}
-				}
-			}
-		}
-		stream["wsSettings"] = ws
+		stream["wsSettings"] = buildClashWSSettings(node)
 	} else if network == "grpc" {
 		stream["network"] = "grpc"
-		if grpcOpts, ok := node["grpc-opts"]; ok {
-			if grpcMap := toStringMap(grpcOpts); grpcMap != nil {
-				if svcName := getMapString(grpcMap, "grpc-service-name"); svcName != "" {
-					stream["grpcSettings"] = map[string]interface{}{"serviceName": svcName}
-				}
-			}
+		if grpc := buildClashGRPCSettings(node); len(grpc) > 0 {
+			stream["grpcSettings"] = grpc
 		}
 	}
 	out["streamSettings"] = stream

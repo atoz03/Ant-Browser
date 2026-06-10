@@ -2,7 +2,7 @@
 import { Monitor, Play, Shield, Cpu, ArrowRight, ExternalLink, Globe, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, Button, toast } from '../../shared/components'
-import { fetchDashboardStats, redeemCDKey, redeemGithubStar, reloadConfig } from './api'
+import { fetchDashboardStats, redeemGithubStar, reloadConfig } from './api'
 import type { DashboardStats } from './types'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { PROJECT_GITHUB_URL } from '../../config/links'
@@ -46,7 +46,6 @@ export function DashboardPage() {
     appVersion: 'unknown',
   })
   const [loading, setLoading] = useState(true)
-  const [cdKey, setCdKey] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const mountedRef = useRef(true)
 
@@ -84,27 +83,12 @@ export function DashboardPage() {
     }
   }
 
-  const handleRedeem = async () => {
-    if (!cdKey.trim()) return
-    setRedeeming(true)
-    const result = await redeemCDKey(cdKey.trim())
-    setRedeeming(false)
-    if (result.success) {
-      toast.success('兑换成功！此名额已到账')
-      setCdKey('')
-      load({ reloadFirst: true })
-    } else {
-      toast.error(result.message || '兑换失败')
-    }
-  }
-
   const handleClaimStarGift = async () => {
     setRedeeming(true)
     const starRes = await redeemGithubStar()
     setRedeeming(false)
     if (starRes.success) {
       toast.success('感谢您的支持！已额外赠送 50 个永久额度！')
-      setCdKey('')
       load({ reloadFirst: true })
     } else {
       toast.error(starRes.message || '领取失败')
@@ -117,6 +101,8 @@ export function DashboardPage() {
   }
 
   const v = (n: number) => loading ? '-' : n.toString()
+  const capacityText = loading ? '-' : `${stats.totalInstances} / ${stats.maxProfileLimit}`
+  const capacityFull = !loading && stats.totalInstances >= stats.maxProfileLimit
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -199,42 +185,28 @@ export function DashboardPage() {
 
           <div className="mt-6 pt-6 border-t border-[var(--color-border-muted)]">
             <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">扩容系统</h3>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="输入兑换码 (如 ANT-...)"
-                value={cdKey}
-                onChange={e => setCdKey(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleRedeem()}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--color-border-default)]
-                           bg-[var(--color-bg-input)] text-[var(--color-text-primary)]
-                           focus:outline-none focus:border-[var(--color-primary)] placeholder-[var(--color-text-muted)]"
-              />
-              <Button onClick={handleRedeem} loading={redeeming} disabled={!cdKey.trim()}>
-                兑换
-              </Button>
-            </div>
-            <p className="mt-2 text-xs text-[var(--color-text-muted)] flex items-center justify-between">
-              <span>当前容量限制：</span>
-              <span className={`font-medium ${stats.totalInstances >= stats.maxProfileLimit ? 'text-red-500' : 'text-[var(--color-success)]'}`}>
-                {loading ? '-' : `${stats.totalInstances} / ${stats.maxProfileLimit}`}
-              </span>
-            </p>
-
-            <div className="mt-4 rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
+            <div className="rounded-xl border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-[var(--color-text-primary)]">点亮 GitHub Star 后，可再获赠 50 个永久额度</p>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-full p-2 text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/10 disabled:opacity-50"
+                <div className="min-w-0">
+                  <p className="text-xs text-[var(--color-text-muted)]">当前容量</p>
+                  <p className={`mt-1 text-2xl font-semibold ${capacityFull ? 'text-red-500' : 'text-[var(--color-accent)]'}`}>
+                    {capacityText}
+                  </p>
+                </div>
+                <Button
+                  size="lg"
                   onClick={handleOpenGithubStarGift}
-                  disabled={redeeming}
-                  title="打开 GitHub 并领取赠送"
-                  aria-label="打开 GitHub 并领取赠送"
+                  loading={redeeming}
+                  className="shrink-0 shadow-sm"
+                  title="打开 GitHub 并领取扩容"
                 >
                   <ExternalLink className="w-4 h-4" />
-                </button>
+                  Star 扩容 +50
+                </Button>
               </div>
+              <p className="mt-3 text-xs font-medium text-[var(--color-text-secondary)]">
+                点亮 GitHub Star 后领取 50 个永久额度
+              </p>
             </div>
           </div>
         </Card>

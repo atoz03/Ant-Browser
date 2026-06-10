@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ExternalLink, XCircle } from 'lucide-react'
-import { Button, Input, Modal } from '../../../../shared/components'
+import { Button, Modal } from '../../../../shared/components'
 import { BrowserProfileCopyForm } from '../../components/BrowserProfileCopyForm'
 import { KeywordsModal } from '../../components/KeywordsModal'
 import type { BrowserProfile, BrowserProfileCopyOptions } from '../../types'
@@ -19,9 +19,6 @@ interface BrowserListDialogsProps {
   onCloseExpand: () => void
   profilesCount: number
   maxProfileLimit: number
-  cdKey: string
-  onCdKeyChange: (value: string) => void
-  onRedeem: () => void
   redeeming: boolean
   onOpenGithubStarGift: () => void
   copyModal: { open: boolean; profile: BrowserProfile | null }
@@ -51,9 +48,6 @@ export function BrowserListDialogs({
   onCloseExpand,
   profilesCount,
   maxProfileLimit,
-  cdKey,
-  onCdKeyChange,
-  onRedeem,
   redeeming,
   onOpenGithubStarGift,
   copyModal,
@@ -119,48 +113,32 @@ export function BrowserListDialogs({
         footer={<Button variant="secondary" onClick={onCloseExpand}>关闭</Button>}
       >
         <div className="space-y-4">
-          <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg flex items-center justify-between border border-[var(--color-border-default)]">
+          <div className="rounded-xl border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 p-4 shadow-sm">
             <div>
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">当前使用情况</p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">每个配置都需要消耗 1 个实例额度</p>
+              <p className="text-xs text-[var(--color-text-muted)]">当前容量</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-2">每个配置消耗 1 个实例额度</p>
             </div>
             <div className="text-right">
-              <span className={`text-2xl font-semibold ${profilesCount >= maxProfileLimit ? 'text-red-500' : 'text-[var(--color-success)]'}`}>
+              <span className={`text-3xl font-semibold ${profilesCount >= maxProfileLimit ? 'text-red-500' : 'text-[var(--color-accent)]'}`}>
                 {profilesCount}
               </span>
               <span className="text-sm text-[var(--color-text-muted)] ml-1">/ {maxProfileLimit}</span>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-[var(--color-border-muted)]">
-            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">使用兑换码扩容</label>
-            <div className="flex gap-2">
-              <Input
-                value={cdKey}
-                onChange={e => onCdKeyChange(e.target.value)}
-                placeholder="输入兑换码 (如 ANT-...)"
-                onKeyDown={e => e.key === 'Enter' && onRedeem()}
-                className="flex-1"
-              />
-              <Button onClick={onRedeem} loading={redeeming} disabled={!cdKey.trim()}>
-                进行兑换
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-subtle)] p-4">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-[var(--color-text-primary)]">点亮 GitHub Star 后，可再获赠 50 个永久额度</p>
-              <button
-                type="button"
-                className="shrink-0 rounded-full p-2 text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/10 disabled:opacity-50"
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">点亮 GitHub Star 后领取 50 个永久额度</p>
+              <Button
+                size="lg"
                 onClick={onOpenGithubStarGift}
-                disabled={redeeming}
+                loading={redeeming}
+                className="shrink-0 shadow-sm"
                 title="打开 GitHub 并领取赠送"
-                aria-label="打开 GitHub 并领取赠送"
               >
                 <ExternalLink className="w-4 h-4" />
-              </button>
+                Star 扩容 +50
+              </Button>
             </div>
           </div>
         </div>

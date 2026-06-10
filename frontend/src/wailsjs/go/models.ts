@@ -427,6 +427,66 @@ export namespace backend {
 	        this.usedKeys = source["usedKeys"];
 	    }
 	}
+	export class ProxyBridgeWarmupResult {
+	    proxyId: string;
+	    ok: boolean;
+	    engine: string;
+	    socksUrl: string;
+	    latencyMs: number;
+	    error: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ProxyBridgeWarmupResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.proxyId = source["proxyId"];
+	        this.ok = source["ok"];
+	        this.engine = source["engine"];
+	        this.socksUrl = source["socksUrl"];
+	        this.latencyMs = source["latencyMs"];
+	        this.error = source["error"];
+	    }
+	}
+	export class ProxyIPHealthResult {
+	    proxyId: string;
+	    ok: boolean;
+	    source: string;
+	    error: string;
+	    ip: string;
+	    fraudScore: number;
+	    isResidential: boolean;
+	    isBroadcast: boolean;
+	    country: string;
+	    region: string;
+	    city: string;
+	    asOrganization: string;
+	    rawData: Record<string, any>;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ProxyIPHealthResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.proxyId = source["proxyId"];
+	        this.ok = source["ok"];
+	        this.source = source["source"];
+	        this.error = source["error"];
+	        this.ip = source["ip"];
+	        this.fraudScore = source["fraudScore"];
+	        this.isResidential = source["isResidential"];
+	        this.isBroadcast = source["isBroadcast"];
+	        this.country = source["country"];
+	        this.region = source["region"];
+	        this.city = source["city"];
+	        this.asOrganization = source["asOrganization"];
+	        this.rawData = source["rawData"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class ProxyLocationOption {
 	    label: string;
 	    timezone: string;
@@ -499,44 +559,6 @@ export namespace backend {
 		    return a;
 		}
 	}
-	export class ProxyIPHealthResult {
-	    proxyId: string;
-	    ok: boolean;
-	    source: string;
-	    error: string;
-	    ip: string;
-	    fraudScore: number;
-	    isResidential: boolean;
-	    isBroadcast: boolean;
-	    country: string;
-	    region: string;
-	    city: string;
-	    asOrganization: string;
-	    rawData: Record<string, any>;
-	    updatedAt: string;
-
-	    static createFrom(source: any = {}) {
-	        return new ProxyIPHealthResult(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.proxyId = source["proxyId"];
-	        this.ok = source["ok"];
-	        this.source = source["source"];
-	        this.error = source["error"];
-	        this.ip = source["ip"];
-	        this.fraudScore = source["fraudScore"];
-	        this.isResidential = source["isResidential"];
-	        this.isBroadcast = source["isBroadcast"];
-	        this.country = source["country"];
-	        this.region = source["region"];
-	        this.city = source["city"];
-	        this.asOrganization = source["asOrganization"];
-	        this.rawData = source["rawData"];
-	        this.updatedAt = source["updatedAt"];
-	    }
-	}
 	export class ProxyTestResult {
 	    proxyId: string;
 	    ok: boolean;
@@ -551,28 +573,6 @@ export namespace backend {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.proxyId = source["proxyId"];
 	        this.ok = source["ok"];
-	        this.latencyMs = source["latencyMs"];
-	        this.error = source["error"];
-	    }
-	}
-	export class ProxyBridgeWarmupResult {
-	    proxyId: string;
-	    ok: boolean;
-	    engine: string;
-	    socksUrl: string;
-	    latencyMs: number;
-	    error: string;
-
-	    static createFrom(source: any = {}) {
-	        return new ProxyBridgeWarmupResult(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.proxyId = source["proxyId"];
-	        this.ok = source["ok"];
-	        this.engine = source["engine"];
-	        this.socksUrl = source["socksUrl"];
 	        this.latencyMs = source["latencyMs"];
 	        this.error = source["error"];
 	    }
@@ -1223,6 +1223,95 @@ export namespace logger {
 	        if ('string' === typeof source) source = JSON.parse(source);
 
 	    }
+	}
+
+}
+
+export namespace proxy {
+
+	export class ProxyRuntimeDiagnostic {
+	    workDir: string;
+	    configPath: string;
+	    stderrPath: string;
+	    logPath: string;
+	    errorPath: string;
+	    recentLogs: Record<string, string>;
+	    bridgeAlive: boolean;
+	    bridgePort: number;
+	    lastError: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ProxyRuntimeDiagnostic(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workDir = source["workDir"];
+	        this.configPath = source["configPath"];
+	        this.stderrPath = source["stderrPath"];
+	        this.logPath = source["logPath"];
+	        this.errorPath = source["errorPath"];
+	        this.recentLogs = source["recentLogs"];
+	        this.bridgeAlive = source["bridgeAlive"];
+	        this.bridgePort = source["bridgePort"];
+	        this.lastError = source["lastError"];
+	    }
+	}
+	export class ProxyBuildDiagnostic {
+	    proxyId: string;
+	    proxyName: string;
+	    found: boolean;
+	    ok: boolean;
+	    engine: string;
+	    nodeKey: string;
+	    rawConfigMasked: string;
+	    dnsServers: string;
+	    standardProxy: string;
+	    outbounds: any[];
+	    routes: any[];
+	    outbound: Record<string, any>;
+	    runtime: ProxyRuntimeDiagnostic;
+	    errors: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new ProxyBuildDiagnostic(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.proxyId = source["proxyId"];
+	        this.proxyName = source["proxyName"];
+	        this.found = source["found"];
+	        this.ok = source["ok"];
+	        this.engine = source["engine"];
+	        this.nodeKey = source["nodeKey"];
+	        this.rawConfigMasked = source["rawConfigMasked"];
+	        this.dnsServers = source["dnsServers"];
+	        this.standardProxy = source["standardProxy"];
+	        this.outbounds = source["outbounds"];
+	        this.routes = source["routes"];
+	        this.outbound = source["outbound"];
+	        this.runtime = this.convertValues(source["runtime"], ProxyRuntimeDiagnostic);
+	        this.errors = source["errors"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
