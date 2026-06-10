@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -77,6 +78,44 @@ func TestProxyConfigToMappingClashYAML(t *testing.T) {
 	}
 	if got := mapping["name"]; got != "speedtest-proxy" {
 		t.Fatalf("name = %v, want speedtest-proxy", got)
+	}
+}
+
+func TestProxyConfigToMappingSSURI(t *testing.T) {
+	t.Parallel()
+
+	userinfo := base64.RawURLEncoding.EncodeToString([]byte("aes-128-gcm:secret"))
+	mapping, err := proxyConfigToMapping("ss://" + userinfo + "@ptxlv6-1.hxx.top:43001#node")
+	if err != nil {
+		t.Fatalf("proxyConfigToMapping returned error: %v", err)
+	}
+	if got := mapping["type"]; got != "ss" {
+		t.Fatalf("type = %v, want ss", got)
+	}
+	if got := mapping["server"]; got != "ptxlv6-1.hxx.top" {
+		t.Fatalf("server = %v, want ptxlv6-1.hxx.top", got)
+	}
+	if got := mapping["port"]; got != 43001 {
+		t.Fatalf("port = %v, want 43001", got)
+	}
+	if got := mapping["cipher"]; got != "aes-128-gcm" {
+		t.Fatalf("cipher = %v, want aes-128-gcm", got)
+	}
+	if got := mapping["password"]; got != "secret" {
+		t.Fatalf("password = %v, want secret", got)
+	}
+}
+
+func TestProxyEndpointSSURIIPv6(t *testing.T) {
+	t.Parallel()
+
+	raw := base64.RawURLEncoding.EncodeToString([]byte("aes-128-gcm:secret@[2001:db8::1]:43001"))
+	endpoint, err := proxyEndpoint("ss://" + raw)
+	if err != nil {
+		t.Fatalf("proxyEndpoint returned error: %v", err)
+	}
+	if endpoint != "[2001:db8::1]:43001" {
+		t.Fatalf("endpoint = %q, want [2001:db8::1]:43001", endpoint)
 	}
 }
 

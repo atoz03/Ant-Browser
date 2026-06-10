@@ -19,6 +19,9 @@ func proxyConfigToMapping(src string) (map[string]any, error) {
 	if strings.HasPrefix(l, "socks5://") {
 		return parseStandardProxy(src, "socks5")
 	}
+	if strings.HasPrefix(l, "ss://") {
+		return parseSSURIToMapping(src)
+	}
 
 	if strings.Contains(l, "://") && !strings.Contains(l, "type:") {
 		return nil, fmt.Errorf("URI 格式暂不支持: %s", l[:min(30, len(l))])
@@ -56,6 +59,26 @@ func parseStandardProxy(src string, proxyType string) (map[string]any, error) {
 	if username != "" {
 		mapping["username"] = username
 		mapping["password"] = password
+	}
+	return mapping, nil
+}
+
+func parseSSURIToMapping(src string) (map[string]any, error) {
+	outbound, err := buildOutboundSS(src)
+	if err != nil {
+		return nil, err
+	}
+	settings, ok := outbound["settings"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("ss 节点缺少 settings")
+	}
+	mapping := map[string]any{
+		"name":     "speedtest-proxy",
+		"type":     "ss",
+		"server":   settings["address"],
+		"port":     settings["port"],
+		"cipher":   settings["method"],
+		"password": settings["password"],
 	}
 	return mapping, nil
 }

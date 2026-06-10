@@ -243,10 +243,10 @@ func buildOutboundSS(node string) (map[string]interface{}, error) {
 			method = parts[0]
 			password = parts[1]
 		}
-		hostPort := strings.Split(hostPart, ":")
-		if len(hostPort) == 2 {
-			host = hostPort[0]
-			port, _ = strconv.Atoi(hostPort[1])
+		parsedHost, parsedPort, splitErr := splitHostPortLenient(hostPart)
+		if splitErr == nil {
+			host = parsedHost
+			port = parsedPort
 		}
 	}
 
