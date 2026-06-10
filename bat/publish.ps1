@@ -1,6 +1,8 @@
 ﻿param(
     [string]$Target,
-    [string]$Version
+    [string]$Version,
+    [ValidateSet("INSTALLER", "PORTABLE", "BOTH")]
+    [string]$WindowsFormat = "INSTALLER"
 )
 
 Set-StrictMode -Version Latest
@@ -9,9 +11,10 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-$script:Version = ""
+$script:ResolvedVersion = ""
 $script:LinuxArch = ""
-$script:WindowsDone = $false
+$script:WindowsInstallerDone = $false
+$script:WindowsPortableDone = $false
 $script:LinuxDone = $false
 
 function Write-Section {
@@ -88,9 +91,9 @@ function Resolve-Version {
 
     $explicit = Get-TrimmedText $ExplicitVersion
     if ($explicit -ne "") {
-        $script:Version = Assert-VersionValue -Value $explicit -Source "传入版本号"
+        $script:ResolvedVersion = Assert-VersionValue -Value $explicit -Source "传入版本号"
         Write-Host "[1/3] 使用传入版本号..."
-        Write-Host "✓ 版本号: $script:Version"
+        Write-Host "✓ 版本号: $script:ResolvedVersion"
         Write-Host ""
         return
     }
@@ -107,8 +110,8 @@ function Resolve-Version {
         throw "无法从 wails.json 读取版本号"
     }
 
-    $script:Version = Assert-VersionValue -Value $resolvedVersion -Source "wails.json productVersion"
-    Write-Host "✓ 版本号: $script:Version"
+    $script:ResolvedVersion = Assert-VersionValue -Value $resolvedVersion -Source "wails.json productVersion"
+    Write-Host "✓ 版本号: $script:ResolvedVersion"
     Write-Host ""
 }
 
@@ -126,15 +129,15 @@ function Invoke-WithTemporaryWailsVersion {
 
     $currentConfig = Get-Content -LiteralPath $wailsConfigPath -Raw | ConvertFrom-Json
     $currentVersion = Get-TrimmedText ([string]$currentConfig.info.productVersion)
-    if ($currentVersion -eq $script:Version) {
+    if ($currentVersion -eq $script:ResolvedVersion) {
         & $ScriptBlock
         return
     }
 
-    Write-Host "  临时覆盖 wails.json productVersion: $currentVersion -> $script:Version"
+    Write-Host "  临时覆盖 wails.json productVersion: $currentVersion -> $script:ResolvedVersion"
     $originalBytes = [System.IO.File]::ReadAllBytes($wailsConfigPath)
     try {
-        $currentConfig.info.productVersion = $script:Version
+        $currentConfig.info.productVersion = $script:ResolvedVersion
         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
         $jsonText = ($currentConfig | ConvertTo-Json -Depth 100)
         [System.IO.File]::WriteAllText($wailsConfigPath, $jsonText + "`n", $utf8NoBom)
@@ -188,6 +191,19 @@ function Resolve-PublishTarget {
         }
         Write-Host "✗ 未选择有效目标" -ForegroundColor Yellow
     }
+}
+
+function Resolve-WindowsFormat {
+    param([string]$InputFormat)
+
+    $normalized = (Get-TrimmedText $InputFormat).ToUpperInvariant()
+    if ($normalized -eq "") {
+        return "INSTALLER"
+    }
+    if ($normalized -notin @("INSTALLER", "PORTABLE", "BOTH")) {
+        throw "无效的 Windows 输出格式: $InputFormat`n  支持参数: INSTALLER/PORTABLE/BOTH"
+    }
+    return $normalized
 }
 
 function Resolve-NsisPath {
@@ -505,7 +521,7 @@ function Invoke-WindowsPackaging {
         Write-Host "  NSIS 全局配置: disabled (/NOCONFIG)"
     }
     $nsisArguments = @(
-        "/DVERSION=$script:Version",
+        "/DVERSION=$script:ResolvedVersion",
         "/DSTAGINGDIR=$stagingAbs",
         "publish\installer.nsi"
     )
@@ -521,6 +537,83 @@ function Invoke-WindowsPackaging {
     Write-Host ""
 }
 
+function New-WindowsPortableArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StagingDir
+    )
+
+    Write-Host "[Windows] 生成便携 ZIP..."
+    $outputDir = Join-Path $repoRoot "publish/output"
+    if (-not (Test-Path -LiteralPath $outputDir)) {
+        New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+    }
+
+    $archiveName = "AntBrowser-$script:ResolvedVersion-windows-amd64-portable.zip"
+    $archivePath = Join-Path $outputDir $archiveName
+    $rootName = "AntBrowser-$script:ResolvedVersion-windows-amd64-portable"
+    if (Test-Path -LiteralPath $archivePath) {
+        Remove-Item -LiteralPath $archivePath -Force
+    }
+
+    Add-Type -AssemblyName System.IO.Compression
+    $archiveStream = [System.IO.File]::Open(
+        $archivePath,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+    try {
+        $archive = New-Object System.IO.Compression.ZipArchive(
+            $archiveStream,
+            [System.IO.Compression.ZipArchiveMode]::Create,
+            $false
+        )
+        try {
+            $archive.CreateEntry("$rootName/") | Out-Null
+
+            foreach ($directory in (Get-ChildItem -LiteralPath $StagingDir -Directory -Recurse -Force)) {
+                $relativePath = $directory.FullName.Substring($StagingDir.Length).TrimStart('\', '/')
+                $entryName = "$rootName/$($relativePath.Replace('\', '/'))/"
+                $archive.CreateEntry($entryName) | Out-Null
+            }
+
+            foreach ($file in (Get-ChildItem -LiteralPath $StagingDir -File -Recurse -Force)) {
+                $relativePath = $file.FullName.Substring($StagingDir.Length).TrimStart('\', '/')
+                $entryName = "$rootName/$($relativePath.Replace('\', '/'))"
+                $entry = $archive.CreateEntry(
+                    $entryName,
+                    [System.IO.Compression.CompressionLevel]::Optimal
+                )
+                $inputStream = [System.IO.File]::OpenRead($file.FullName)
+                $outputStream = $entry.Open()
+                try {
+                    $inputStream.CopyTo($outputStream)
+                }
+                finally {
+                    $outputStream.Dispose()
+                    $inputStream.Dispose()
+                }
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+    finally {
+        $archiveStream.Dispose()
+    }
+
+    if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+        throw "便携 ZIP 生成失败: $archivePath"
+    }
+
+    $script:WindowsPortableDone = $true
+    Write-Host "✓ Windows 便携包生成成功: publish\output\$archiveName"
+    Write-Host ""
+    return $archivePath
+}
+
 function Remove-WindowsStaging {
     param([string]$StagingDir)
 
@@ -533,23 +626,37 @@ function Remove-WindowsStaging {
 }
 
 function Publish-Windows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Format
+    )
+
     Write-Host "[3/3] 开始 Windows 打包..."
+    Write-Host "  输出格式: $Format"
     Write-Host ""
 
-    $makensisPath = Resolve-NsisPath
+    $makensisPath = $null
+    if ($Format -in @("INSTALLER", "BOTH")) {
+        $makensisPath = Resolve-NsisPath
+    }
     Assert-RuntimeHashes -Target "windows-amd64"
     Build-WindowsBinary
 
     $stagingDir = $null
     try {
         $stagingDir = New-WindowsStaging
-        Invoke-WindowsPackaging -MakensisPath $makensisPath -StagingDir $stagingDir
+        if ($Format -in @("INSTALLER", "BOTH")) {
+            Invoke-WindowsPackaging -MakensisPath $makensisPath -StagingDir $stagingDir
+            $script:WindowsInstallerDone = $true
+        }
+        if ($Format -in @("PORTABLE", "BOTH")) {
+            New-WindowsPortableArchive -StagingDir $stagingDir | Out-Null
+        }
     }
     finally {
         Remove-WindowsStaging -StagingDir $stagingDir
     }
 
-    $script:WindowsDone = $true
     Write-Host "✓ Windows 打包完成"
     Write-Host ""
 }
@@ -565,7 +672,7 @@ function Publish-Linux {
     }
 
     try {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $linuxScript -RepoRoot $repoRoot -ArchOutFile $archOutFile -Version $script:Version
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $linuxScript -RepoRoot $repoRoot -ArchOutFile $archOutFile -Version $script:ResolvedVersion
         if ($LASTEXITCODE -ne 0) {
             throw "Linux 打包失败"
         }
@@ -591,17 +698,18 @@ try {
 
     Resolve-Version -ExplicitVersion $Version
     $publishTarget = Resolve-PublishTarget -InputTarget $Target
+    $resolvedWindowsFormat = Resolve-WindowsFormat -InputFormat $WindowsFormat
 
     Invoke-WithTemporaryWailsVersion {
         switch ($publishTarget) {
             "WINDOWS" {
-                Publish-Windows
+                Publish-Windows -Format $resolvedWindowsFormat
             }
             "LINUX" {
                 Publish-Linux
             }
             "BOTH" {
-                Publish-Windows
+                Publish-Windows -Format $resolvedWindowsFormat
                 Publish-Linux
             }
             default {
@@ -613,8 +721,11 @@ try {
     Write-Host ""
     Write-Section "✓ 发布完成！"
     Write-Host ""
-    if ($script:WindowsDone) {
-        Write-Host "Windows 安装包: publish\output\AntBrowser-Setup-$script:Version.exe"
+    if ($script:WindowsInstallerDone) {
+        Write-Host "Windows 安装包: publish\output\AntBrowser-Setup-$script:ResolvedVersion.exe"
+    }
+    if ($script:WindowsPortableDone) {
+        Write-Host "Windows 便携包: publish\output\AntBrowser-$script:ResolvedVersion-windows-amd64-portable.zip"
     }
     if ($script:LinuxDone) {
         Write-Host "Linux 产物目录: publish\output\"

@@ -164,6 +164,18 @@ Ant Browser 适合以下场景：
 - `bat\dev.bat limited`：在 `live` 基础上为 watcher 与其子进程附加 Windows Job Object 内存限制
 - 如需为依赖下载配置代理，可在启动前设置 `DEV_PROXY_URL`、`DEV_NO_PROXY`、`DEV_GOPROXY`
 
+### Windows 发布打包（源码）
+
+Windows 发布脚本默认保持原有 NSIS 安装包行为，也可以生成便携 ZIP，或一次生成两种产物：
+
+```powershell
+bat\publish.bat -Target WINDOWS -WindowsFormat INSTALLER
+bat\publish.bat -Target WINDOWS -WindowsFormat PORTABLE
+bat\publish.bat -Target WINDOWS -WindowsFormat BOTH
+```
+
+省略 `-WindowsFormat` 时等同于 `INSTALLER`。安装包和便携 ZIP 输出到 `publish\output\`。
+
 ### Linux 发布打包（源码）
 
 Linux 发布脚本位于 `publish/linux/`。
