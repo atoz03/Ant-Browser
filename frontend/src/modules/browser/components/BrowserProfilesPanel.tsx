@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { Copy, Key, Loader2, MoreHorizontal, Play, Puzzle, Repeat2, RotateCcw, Settings, Square, Trash2, Wifi } from 'lucide-react'
+import { Copy, Download, Key, Loader2, MoreHorizontal, Play, Puzzle, Repeat2, RotateCcw, Settings, Square, Trash2, Wifi } from 'lucide-react'
 
 import { Badge, Button, Card, Table } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
@@ -39,6 +39,7 @@ interface BrowserProfilesPanelProps {
   onRestart: (profileId: string) => void
   onOpenKeywords: (profile: BrowserProfile) => void
   onOpenExtensions: (profile: BrowserProfile) => void
+  onExport: (profile: BrowserProfile) => void
   onOpenCopy: (profile: BrowserProfile) => void
   onOpenProxyPicker: (profile: BrowserProfile) => void
   onDelete: (profileId: string) => void
@@ -151,6 +152,7 @@ function ProfileMoreActions({
   onRestart,
   onOpenKeywords,
   onOpenExtensions,
+  onExport,
 }: {
   open: boolean
   disabled: boolean
@@ -159,6 +161,7 @@ function ProfileMoreActions({
   onRestart: () => void
   onOpenKeywords: () => void
   onOpenExtensions: () => void
+  onExport: () => void
 }) {
   const triggerRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -170,7 +173,7 @@ function ProfileMoreActions({
       const rect = triggerRef.current?.getBoundingClientRect()
       if (!rect) return
       const menuWidth = 128
-      const menuHeight = 128
+      const menuHeight = 168
       const gap = 8
       const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))
       const belowTop = rect.bottom + gap
@@ -245,6 +248,14 @@ function ProfileMoreActions({
           >
             <Puzzle className="w-3.5 h-3.5" />
             插件
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-primary)]"
+            onClick={() => runAndClose(onExport)}
+          >
+            <Download className="w-3.5 h-3.5" />
+            导出
           </button>
         </div>,
         document.body
@@ -400,6 +411,7 @@ export function BrowserProfilesPanel({
   onRestart,
   onOpenKeywords,
   onOpenExtensions,
+  onExport,
   onOpenCopy,
   onOpenProxyPicker,
   onDelete,
@@ -528,6 +540,7 @@ export function BrowserProfilesPanel({
               onRestart={() => onRestart(record.profileId)}
               onOpenKeywords={() => onOpenKeywords(record)}
               onOpenExtensions={() => onOpenExtensions(record)}
+              onExport={() => onExport(record)}
             />
             <Button size="sm" variant="ghost" onClick={() => onDelete(record.profileId)} title="删除" disabled={isBusy}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
           </div>

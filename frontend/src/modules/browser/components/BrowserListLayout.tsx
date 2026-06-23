@@ -1,5 +1,5 @@
 ﻿import { Link } from 'react-router-dom'
-import { Activity, CheckCircle, ChevronRight, ChevronUp, Edit2, FileText, Gift, LayoutGrid, List, Play, Plus, RefreshCw, Sliders, Square, Star, Trash2, XCircle } from 'lucide-react'
+import { Activity, CheckCircle, ChevronRight, ChevronUp, Edit2, FileText, Gift, LayoutGrid, List, Play, Plus, RefreshCw, Sliders, Square, Star, Trash2, Upload, XCircle } from 'lucide-react'
 
 import { Button, Card, FormItem, Input, Modal, StatCard, Switch, Table, Textarea } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
@@ -27,6 +27,8 @@ interface BrowserListHeaderProps {
   onOpenSettings: () => void
   onOpenExpandModal: () => void
   onOpenTrash: () => void
+  onImportProfiles: () => void
+  importingProfiles?: boolean
   onViewModeChange: (next: BrowserViewMode) => void
 }
 
@@ -47,6 +49,8 @@ export function BrowserListHeader({
   onOpenSettings,
   onOpenExpandModal,
   onOpenTrash,
+  onImportProfiles,
+  importingProfiles = false,
   onViewModeChange,
 }: BrowserListHeaderProps) {
   return (
@@ -74,6 +78,9 @@ export function BrowserListHeader({
           </Button>
           <Button variant="secondary" size="sm" onClick={onOpenTrash}>
             <Trash2 className="w-4 h-4" />回收站
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onImportProfiles} loading={importingProfiles}>
+            <Upload className="w-4 h-4" />导入实例
           </Button>
           <Button
             variant="secondary"

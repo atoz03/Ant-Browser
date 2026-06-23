@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Copy, Pencil, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Copy, Download, Pencil, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
 
 import { Button, toast } from '../../../shared/components'
 import { regenerateBrowserProfileCode, setBrowserProfileCode } from '../api'
@@ -11,8 +11,10 @@ interface BatchToolbarProps {
   onDeselectAll: () => void
   onBatchStart: () => void
   onBatchStop: () => void
+  onBatchExport: () => void
   onBatchDelete: () => void
   batchLoading: boolean
+  exporting?: boolean
 }
 
 export function BatchToolbar({
@@ -22,8 +24,10 @@ export function BatchToolbar({
   onDeselectAll,
   onBatchStart,
   onBatchStop,
+  onBatchExport,
   onBatchDelete,
   batchLoading,
+  exporting = false,
 }: BatchToolbarProps) {
   if (selectedCount === 0) return null
 
@@ -38,6 +42,9 @@ export function BatchToolbar({
         </Button>
         <Button size="sm" variant="secondary" onClick={onBatchStop} loading={batchLoading} title="批量停止">
           <Square className="w-3.5 h-3.5" />停止
+        </Button>
+        <Button size="sm" variant="secondary" onClick={onBatchExport} loading={exporting} title="导出实例">
+          <Download className="w-3.5 h-3.5" />导出
         </Button>
         <Button
           size="sm"
@@ -151,16 +158,16 @@ export function KeywordInlineRow({ keywords }: KeywordInlineRowProps) {
   }
 
   return (
-    <div className="flex items-start gap-4 w-full">
+    <div className="flex items-start gap-4 w-full min-w-0">
       <div
         ref={containerRef}
-        className={`flex flex-wrap gap-2 flex-1 transition-all duration-300 ${expanded ? '' : 'overflow-hidden max-h-[32px]'}`}
+        className={`flex flex-wrap gap-2 flex-1 min-w-0 transition-all duration-300 ${expanded ? '' : 'overflow-hidden max-h-[32px]'}`}
       >
         {keywords.map((keyword, index) => (
           <button
             type="button"
             key={index}
-            className="inline-flex max-w-[200px] items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+            className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
             title={`点击复制：${keyword}`}
             onClick={() => { void handleCopyKeyword(keyword) }}
           >

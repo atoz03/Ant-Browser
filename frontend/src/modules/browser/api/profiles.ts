@@ -1,6 +1,12 @@
 import { applyBrowserProfileCopyOptionsToArgs, createBrowserProfileCopyOptions } from '../copyOptions'
 import { buildBrowserProfileCopyName } from '../copyName'
-import type { BrowserProfile, BrowserProfileCopyOptions, BrowserProfileInput } from '../types'
+import type {
+  BrowserProfile,
+  BrowserProfileCopyOptions,
+  BrowserProfileInput,
+  BrowserProfilePackageExportResult,
+  BrowserProfilePackageImportResult,
+} from '../types'
 import { getBindings, getMockProfiles, nowISOString, setMockProfiles } from './runtime'
 
 export async function fetchBrowserProfiles(): Promise<BrowserProfile[]> {
@@ -36,6 +42,33 @@ export async function fetchAllTags(): Promise<string[]> {
   const tags = new Set<string>()
   getMockProfiles().forEach((profile) => profile.tags?.forEach((tag) => tags.add(tag)))
   return Array.from(tags).sort()
+}
+
+export async function exportBrowserProfilePackage(profileIds: string[]): Promise<BrowserProfilePackageExportResult> {
+  const bindings: any = await getBindings()
+  if (bindings?.BrowserProfilePackageExport) {
+    return await bindings.BrowserProfilePackageExport(profileIds)
+  }
+  return {
+    cancelled: true,
+    zipPath: '',
+    profileCount: 0,
+    fileCount: 0,
+    message: '当前环境不支持导出实例',
+  }
+}
+
+export async function importBrowserProfilePackage(): Promise<BrowserProfilePackageImportResult> {
+  const bindings: any = await getBindings()
+  if (bindings?.BrowserProfilePackageImport) {
+    return await bindings.BrowserProfilePackageImport()
+  }
+  return {
+    cancelled: true,
+    importedCount: 0,
+    profileMappings: {},
+    message: '当前环境不支持导入实例',
+  }
 }
 
 export async function createBrowserProfile(input: BrowserProfileInput): Promise<BrowserProfile | null> {

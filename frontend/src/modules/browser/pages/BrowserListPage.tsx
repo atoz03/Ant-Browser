@@ -18,7 +18,9 @@ import { warmupProfileProxyBeforeStart } from '../utils/proxyWarmup'
 import {
   copyBrowserProfile,
   deleteBrowserProfile,
+  exportBrowserProfilePackage,
   fetchBrowserProfileTrash,
+  importBrowserProfilePackage,
   permanentlyDeleteBrowserProfile,
   restoreBrowserProfile,
   startBrowserInstance,
@@ -40,6 +42,7 @@ export function BrowserListPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
+  const [profilePackageBusy, setProfilePackageBusy] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean
     mode: 'single' | 'batch'
@@ -259,6 +262,62 @@ export function BrowserListPage() {
     loadProfiles()
   }
 
+  const handleBatchExport = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || profilePackageBusy) return
+    const runningNames = profiles
+      .filter(profile => ids.includes(profile.profileId) && profile.running)
+      .map(profile => profile.profileName)
+    if (runningNames.length > 0) {
+      toast.error(`请先停止实例再导出：${runningNames.slice(0, 3).join('、')}${runningNames.length > 3 ? ' 等' : ''}`)
+      return
+    }
+    setProfilePackageBusy(true)
+    try {
+      const result = await exportBrowserProfilePackage(ids)
+      if (result.cancelled) return
+      toast.success(`已导出 ${result.profileCount} 个实例`)
+    } catch (error: any) {
+      toast.error(error?.message || '导出实例失败')
+    } finally {
+      setProfilePackageBusy(false)
+    }
+  }
+
+  const handleExportProfile = async (profile: BrowserProfile) => {
+    if (profilePackageBusy) return
+    if (profile.running) {
+      toast.error(`请先停止实例再导出：${profile.profileName}`)
+      return
+    }
+    setProfilePackageBusy(true)
+    try {
+      const result = await exportBrowserProfilePackage([profile.profileId])
+      if (result.cancelled) return
+      toast.success(`已导出：${profile.profileName}`)
+    } catch (error: any) {
+      toast.error(error?.message || '导出实例失败')
+    } finally {
+      setProfilePackageBusy(false)
+    }
+  }
+
+  const handleImportProfiles = async () => {
+    if (profilePackageBusy) return
+    setProfilePackageBusy(true)
+    try {
+      const result = await importBrowserProfilePackage()
+      if (result.cancelled) return
+      toast.success(`已导入 ${result.importedCount} 个实例`)
+      setSelectedIds(new Set())
+      await loadProfiles()
+    } catch (error: any) {
+      toast.error(error?.message || '导入实例失败')
+    } finally {
+      setProfilePackageBusy(false)
+    }
+  }
+
   const openDeleteConfirm = (profileId: string) => {
     const profile = profiles.find(item => item.profileId === profileId)
     setDeleteConfirm({
@@ -419,6 +478,8 @@ export function BrowserListPage() {
         onRefresh={() => { void loadProfiles() }}
         onOpenSettings={handleOpenSettings}
         onOpenTrash={openTrashModal}
+        onImportProfiles={handleImportProfiles}
+        importingProfiles={profilePackageBusy}
         onOpenExpandModal={() => {
           setExpandModalOpen(true)
           loadQuota()
@@ -434,8 +495,10 @@ export function BrowserListPage() {
         onDeselectAll={handleDeselectAll}
         onBatchStart={handleBatchStart}
         onBatchStop={handleBatchStop}
+        onBatchExport={handleBatchExport}
         onBatchDelete={openBatchDeleteConfirm}
         batchLoading={batchLoading}
+        exporting={profilePackageBusy}
       />
 
       <BrowserProfilesPanel
@@ -459,6 +522,7 @@ export function BrowserListPage() {
         onRestart={(profileId) => { void handleRestart(profileId) }}
         onOpenKeywords={openKwModal}
         onOpenExtensions={openExtensionModal}
+        onExport={(profile) => { void handleExportProfile(profile) }}
         onOpenCopy={openCopyModal}
         onOpenProxyPicker={setProxyPickerProfile}
         onDelete={openDeleteConfirm}

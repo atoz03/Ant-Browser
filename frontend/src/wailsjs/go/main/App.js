@@ -326,6 +326,14 @@ export function BrowserProfileListByTag(arg1) {
   return window['go']['main']['App']['BrowserProfileListByTag'](arg1);
 }
 
+export function BrowserProfilePackageExport(arg1) {
+  return window['go']['main']['App']['BrowserProfilePackageExport'](arg1);
+}
+
+export function BrowserProfilePackageImport() {
+  return window['go']['main']['App']['BrowserProfilePackageImport']();
+}
+
 export function BrowserProfilePermanentlyDelete(arg1) {
   return window['go']['main']['App']['BrowserProfilePermanentlyDelete'](arg1);
 }

@@ -41,6 +41,21 @@ export interface BrowserProfileInput {
   groupId?: string
 }
 
+export interface BrowserProfilePackageExportResult {
+  cancelled: boolean
+  zipPath: string
+  profileCount: number
+  fileCount: number
+  message: string
+}
+
+export interface BrowserProfilePackageImportResult {
+  cancelled: boolean
+  importedCount: number
+  profileMappings: Record<string, string>
+  message: string
+}
+
 export type BrowserProfileCopyMode = 'auto_fingerprint' | 'regular'
 
 export type BrowserProfileAutomationTarget =
