@@ -49,6 +49,7 @@ func buildImportedRecord(envelope scriptImportEnvelope, defaultName string, sour
 	}
 	mergeDescriptorValue(descriptor, "format", envelope.Format)
 	mergeDescriptorValue(descriptor, "packageFormat", envelope.PackageFormat)
+	mergeDescriptorValue(descriptor, "id", envelope.ID)
 	if envelope.ManifestVersion > 0 {
 		descriptor["manifestVersion"] = envelope.ManifestVersion
 	}
@@ -99,18 +100,27 @@ func buildImportedRecord(envelope scriptImportEnvelope, defaultName string, sour
 	}
 
 	now := time.Now().Format(time.RFC3339)
+	packageFormat := normalizeScriptPackageFormat(firstNonEmpty(mapStringValueAny(descriptor, "packageFormat"), mapStringValueAny(descriptor, "format")))
+	recordID := uuid.NewString()
+	recordStatus := "draft"
+	if packageFormat == defaultScriptPackageFormat {
+		if manifestID := strings.TrimSpace(mapStringValueAny(descriptor, "id")); manifestID != "" {
+			recordID = manifestID
+		}
+		recordStatus = mapStringValueAny(descriptor, "status")
+	}
 	source := inferImportSource(sourceLabel)
 	if explicitSource, ok := descriptor["source"].(map[string]any); ok {
 		source = mergeImportedSource(source, explicitSource)
 	}
 	return normalizeScriptRecord(ScriptRecord{
-		PackageFormat:   normalizeScriptPackageFormat(firstNonEmpty(mapStringValueAny(descriptor, "packageFormat"), mapStringValueAny(descriptor, "format"))),
+		PackageFormat:   packageFormat,
 		ManifestVersion: normalizeScriptManifestVersion(mapIntValueAny(descriptor, "manifestVersion"), 0),
-		ID:              uuid.NewString(),
+		ID:              recordID,
 		Name:            firstNonEmpty(mapStringValueAny(descriptor, "name"), defaultName, "导入脚本"),
 		Description:     mapStringValueAny(descriptor, "description"),
 		Type:            mapStringValueAny(descriptor, "type"),
-		Status:          "draft",
+		Status:          recordStatus,
 		EntryFile:       normalizeScriptEntryFile(firstNonEmpty(mapStringValueAny(descriptor, "entryFile"), defaultEntryFileForName(defaultName))),
 		Tags:            mapStringSliceValue(descriptor, "tags"),
 		SelectorText:    stringifyImportJSONValue(firstNonNil(descriptor["selectorText"], descriptor["selector"])),

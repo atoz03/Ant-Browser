@@ -13,6 +13,7 @@ import (
 const (
 	DualInstanceRuntimeScriptID = "dual-instance-runtime-switch"
 	NewsQueryTXTScriptID        = "news-query-txt"
+	ProtonMailFirstMessageID    = "proton-mail-first-message"
 	WebImageGenerateScriptID    = "web-image-generate-download"
 	builtinScriptLibraryRoot    = "demo-library"
 )
@@ -20,12 +21,14 @@ const (
 var builtinScriptLibraryPackageDirs = map[string]string{
 	DualInstanceRuntimeScriptID: builtinScriptLibraryRoot + "/" + DualInstanceRuntimeScriptID,
 	NewsQueryTXTScriptID:        builtinScriptLibraryRoot + "/" + NewsQueryTXTScriptID,
+	ProtonMailFirstMessageID:    builtinScriptLibraryRoot + "/" + ProtonMailFirstMessageID,
 	WebImageGenerateScriptID:    builtinScriptLibraryRoot + "/" + WebImageGenerateScriptID,
 }
 
 var builtinScriptLibraryDefaultOrder = []string{
 	DualInstanceRuntimeScriptID,
 	NewsQueryTXTScriptID,
+	ProtonMailFirstMessageID,
 	WebImageGenerateScriptID,
 }
 
@@ -120,6 +123,7 @@ func importBuiltinScriptLibraryBundle(packageDir string) (ImportedBundle, error)
 		Format:          mapStringValueAny(descriptor, "format"),
 		PackageFormat:   mapStringValueAny(descriptor, "packageFormat"),
 		ManifestVersion: mapIntValueAny(descriptor, "manifestVersion"),
+		ID:              mapStringValueAny(descriptor, "id"),
 		Name:            mapStringValueAny(descriptor, "name"),
 		Description:     mapStringValueAny(descriptor, "description"),
 		Type:            mapStringValueAny(descriptor, "type"),

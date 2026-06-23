@@ -1,6 +1,6 @@
-import { Button, FormItem, Input, Modal, Select, Textarea } from "../../../shared/components";
+import { Button, FormItem, Input, Modal, Select } from "../../../shared/components";
 import { AUTOMATION_SCRIPT_TYPE_OPTIONS, type AutomationScriptType } from "../automationScripts";
-import type { ImportMode } from "./AutomationPage.helpers";
+import type { ImportMode, LocalImportKind } from "./AutomationPage.helpers";
 
 interface CreateAutomationScriptModalProps {
   open: boolean;
@@ -73,16 +73,14 @@ interface ImportAutomationScriptModalProps {
   open: boolean;
   busyAction: "none" | "create" | "import";
   importMode: ImportMode;
-  importText: string;
-  remoteURL: string;
+  localImportKind: LocalImportKind;
   gitURL: string;
   gitRef: string;
   gitScriptPath: string;
   onClose: () => void;
   onImport: () => Promise<void>;
   onImportModeChange: (value: ImportMode) => void;
-  onImportTextChange: (value: string) => void;
-  onRemoteURLChange: (value: string) => void;
+  onLocalImportKindChange: (value: LocalImportKind) => void;
   onGitURLChange: (value: string) => void;
   onGitRefChange: (value: string) => void;
   onGitScriptPathChange: (value: string) => void;
@@ -92,16 +90,14 @@ export function ImportAutomationScriptModal({
   open,
   busyAction,
   importMode,
-  importText,
-  remoteURL,
+  localImportKind,
   gitURL,
   gitRef,
   gitScriptPath,
   onClose,
   onImport,
   onImportModeChange,
-  onImportTextChange,
-  onRemoteURLChange,
+  onLocalImportKindChange,
   onGitURLChange,
   onGitRefChange,
   onGitScriptPathChange,
@@ -133,73 +129,50 @@ export function ImportAutomationScriptModal({
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {[
-              { value: "text", label: "文本" },
-              { value: "local-file", label: "本地文件" },
-              { value: "local-dir", label: "本地目录" },
-              { value: "local-library", label: "脚本库" },
-              { value: "remote-url", label: "远程 URL" },
-              { value: "git", label: "Git" },
+              { value: "local", label: "本地", disabled: false },
+              { value: "git", label: "Git（进行中）", disabled: false },
+              { value: "script-library", label: "脚本库（计划中）", disabled: true },
             ].map((item) => (
               <Button
                 key={item.value}
                 size="sm"
                 variant={importMode === item.value ? "primary" : "secondary"}
-                onClick={() => onImportModeChange(item.value as ImportMode)}
-                disabled={busyAction !== "none"}
+                onClick={() => {
+                  if (item.value === "script-library") {
+                    return;
+                  }
+                  onImportModeChange(item.value as ImportMode);
+                }}
+                disabled={busyAction !== "none" || item.disabled}
               >
                 {item.label}
               </Button>
             ))}
           </div>
 
-          {importMode === "text" ? (
-            <>
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                支持导入导出的脚本 JSON，导入后会按草稿保存。
+          {importMode === "local" ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "file", label: "ZIP / 文件" },
+                  { value: "directory", label: "文件夹" },
+                ].map((item) => (
+                  <Button
+                    key={item.value}
+                    size="sm"
+                    variant={localImportKind === item.value ? "primary" : "secondary"}
+                    onClick={() => onLocalImportKindChange(item.value as LocalImportKind)}
+                    disabled={busyAction !== "none"}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
               </div>
-              <FormItem label="脚本 JSON">
-                <Textarea
-                  rows={18}
-                  value={importText}
-                  onChange={(event) => onImportTextChange(event.target.value)}
-                  className="font-mono"
-                  placeholder='{"manifest":{"name":"示例脚本"}}'
-                />
-              </FormItem>
-            </>
-          ) : null}
-
-          {importMode === "local-file" ? (
-            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
-              导入时会弹出文件选择框。支持单个 `.js/.cjs/.mjs` 脚本文件、导出的
-              `.json` 模板，或标准 `.zip` 脚本包。`.ts/.cts/.mts` 仅在设置页开启 TypeScript 导入构建后支持。
-            </div>
-          ) : null}
-
-          {importMode === "local-dir" ? (
-            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
-              导入时会弹出目录选择框。适合导入一整套本地脚本目录，或 Git 拉下来的脚本包目录。目录里的 `.ts/.cts/.mts` 入口也需要先在设置页开启 TypeScript 导入构建。
-            </div>
-          ) : null}
-
-          {importMode === "local-library" ? (
-            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
-              导入时会弹出目录选择框。系统会扫描所选目录下的脚本包并批量导入，来源按本地目录记录，后续刷新不走 Git。
-            </div>
-          ) : null}
-
-          {importMode === "remote-url" ? (
-            <div className="space-y-4">
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                适合导入单个远程脚本文件、导出的脚本 JSON，或标准脚本 ZIP。多文件仓库也可以继续使用 Git 导入；远程 `.ts/.cts/.mts` 同样要求设置页已开启 TypeScript 导入构建。
+              <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
+                {localImportKind === "directory"
+                  ? "点击导入后选择脚本文件夹，适合一整套本地脚本目录。"
+                  : "点击导入后选择本地文件，支持标准 ZIP 脚本包、JSON 模板和单文件脚本。"}
               </div>
-              <FormItem label="远程地址">
-                <Input
-                  value={remoteURL}
-                  onChange={(event) => onRemoteURLChange(event.target.value)}
-                  placeholder="https://example.com/script.cjs"
-                />
-              </FormItem>
             </div>
           ) : null}
 

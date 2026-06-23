@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	automationScriptDefaultsMarkerName = "defaults-seeded-v10"
+	automationScriptDefaultsMarkerName = "defaults-seeded-v11"
 )
 
 var automationScriptDefaultsLegacyMarkerNames = []string{
+	"defaults-seeded-v10",
 	"defaults-seeded-v9",
 	"defaults-seeded-v8",
 	"defaults-seeded-v7",

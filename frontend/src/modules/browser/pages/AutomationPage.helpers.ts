@@ -10,12 +10,9 @@ import {
 import type { BrowserProfile } from "../types";
 
 export type ImportMode =
-  | "text"
-  | "local-file"
-  | "local-dir"
-  | "local-library"
-  | "remote-url"
+  | "local"
   | "git";
+export type LocalImportKind = "file" | "directory";
 export const DUAL_INSTANCE_SCRIPT_ID = "dual-instance-runtime-switch";
 export const NEWS_SCRIPT_ID = "news-query-txt";
 

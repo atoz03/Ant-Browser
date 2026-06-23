@@ -7,8 +7,8 @@ func TestDefaultScriptBundles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultScriptBundles returned error: %v", err)
 	}
-	if len(bundles) != 3 {
-		t.Fatalf("expected three default script bundles, got %d", len(bundles))
+	if len(bundles) != 4 {
+		t.Fatalf("expected four default script bundles, got %d", len(bundles))
 	}
 
 	expected := []struct {
@@ -28,6 +28,12 @@ func TestDefaultScriptBundles(t *testing.T) {
 			name:      "查询新闻并写 TXT",
 			uri:       "repo://backend/internal/automation/demo-library/news-query-txt",
 			publicAPI: "",
+		},
+		{
+			id:        ProtonMailFirstMessageID,
+			name:      "Proton 邮件搜索并读取最新邮件",
+			uri:       "repo://backend/internal/automation/demo-library/proton-mail-first-message",
+			publicAPI: "mail/proton-first-message",
 		},
 		{
 			id:        WebImageGenerateScriptID,

@@ -10,9 +10,6 @@ import {
   importAutomationScriptFromGit,
   importAutomationScriptFromLocalDirectory,
   importAutomationScriptFromLocalFile,
-  importAutomationScriptFromLocalLibrary,
-  importAutomationScriptFromRemote,
-  importAutomationScriptFromText,
   saveAutomationScript,
 } from "../automationScriptApi";
 import {
@@ -37,6 +34,7 @@ import {
   resolveDualLaunchCodes,
   type AutomationCardPresentation,
   type ImportMode,
+  type LocalImportKind,
 } from "./AutomationPage.helpers";
 export function AutomationPage() {
   const navigate = useNavigate();
@@ -56,9 +54,8 @@ export function AutomationPage() {
   const [createType, setCreateType] =
     useState<AutomationScriptType>("playwright-cdp");
   const [createName, setCreateName] = useState("");
-  const [importMode, setImportMode] = useState<ImportMode>("text");
-  const [importText, setImportText] = useState("");
-  const [remoteURL, setRemoteURL] = useState("");
+  const [importMode, setImportMode] = useState<ImportMode>("local");
+  const [localImportKind, setLocalImportKind] = useState<LocalImportKind>("file");
   const [gitURL, setGitURL] = useState("");
   const [gitRef, setGitRef] = useState("");
   const [gitScriptPath, setGitScriptPath] = useState("");
@@ -202,9 +199,8 @@ export function AutomationPage() {
   };
 
   const resetImportModal = () => {
-    setImportMode("text");
-    setImportText("");
-    setRemoteURL("");
+    setImportMode("local");
+    setLocalImportKind("file");
     setGitURL("");
     setGitRef("");
     setGitScriptPath("");
@@ -250,24 +246,12 @@ export function AutomationPage() {
       let failedCount = 0;
 
       switch (importMode) {
-        case "text": {
-          imported = [await importAutomationScriptFromText(importText)];
-          break;
-        }
-        case "local-file":
-          imported = [await importAutomationScriptFromLocalFile()];
-          break;
-        case "local-dir":
-          imported = [await importAutomationScriptFromLocalDirectory()];
-          break;
-        case "local-library": {
-          const result = await importAutomationScriptFromLocalLibrary();
-          imported = result.imported;
-          failedCount = result.failed.length;
-          break;
-        }
-        case "remote-url":
-          imported = [await importAutomationScriptFromRemote(remoteURL)];
+        case "local":
+          imported = [
+            localImportKind === "directory"
+              ? await importAutomationScriptFromLocalDirectory()
+              : await importAutomationScriptFromLocalFile(),
+          ];
           break;
         case "git":
           imported = [
@@ -407,16 +391,14 @@ export function AutomationPage() {
         open={importOpen}
         busyAction={modalBusyAction}
         importMode={importMode}
-        importText={importText}
-        remoteURL={remoteURL}
+        localImportKind={localImportKind}
         gitURL={gitURL}
         gitRef={gitRef}
         gitScriptPath={gitScriptPath}
         onClose={closeImportModal}
         onImport={handleImport}
         onImportModeChange={setImportMode}
-        onImportTextChange={setImportText}
-        onRemoteURLChange={setRemoteURL}
+        onLocalImportKindChange={setLocalImportKind}
         onGitURLChange={setGitURL}
         onGitRefChange={setGitRef}
         onGitScriptPathChange={setGitScriptPath}
