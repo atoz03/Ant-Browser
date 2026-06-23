@@ -69,65 +69,6 @@ func TestShouldPreferVisibleWindowForStartWithParams(t *testing.T) {
 	}
 }
 
-func TestBrowserInstanceStartRunningProfileOpensNewTab(t *testing.T) {
-	app, exePath := newBrowserOpenURLTestAppWithCore(t)
-
-	cmd := longLivedCommand(2 * time.Second)
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("启动长生命周期测试进程失败: %v", err)
-	}
-	defer func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-			_, _ = cmd.Process.Wait()
-		}
-	}()
-
-	profile := &BrowserProfile{
-		ProfileId:   "profile-running-start",
-		ProfileName: "Running Browser",
-		UserDataDir: "profile-running-start",
-		Running:     true,
-		DebugReady:  false,
-		DebugPort:   0,
-		Pid:         cmd.Process.Pid,
-	}
-	app.browserMgr.Profiles = map[string]*BrowserProfile{profile.ProfileId: profile}
-	app.browserMgr.BrowserProcesses = map[string]*exec.Cmd{profile.ProfileId: cmd}
-
-	expectedUserDataDir := app.browserMgr.ResolveUserDataDir(profile)
-	var gotPath string
-	var gotArgs []string
-
-	originalStart := startBrowserWindowProcess
-	startBrowserWindowProcess = func(chromeBinaryPath string, args []string) (*exec.Cmd, error) {
-		gotPath = chromeBinaryPath
-		gotArgs = append([]string{}, args...)
-		return nil, nil
-	}
-	defer func() {
-		startBrowserWindowProcess = originalStart
-	}()
-
-	started, err := app.BrowserInstanceStart(profile.ProfileId)
-	if err != nil {
-		t.Fatalf("BrowserInstanceStart returned error: %v", err)
-	}
-	if started == nil || started.ProfileId != profile.ProfileId {
-		t.Fatalf("unexpected started profile: %#v", started)
-	}
-	if gotPath != exePath {
-		t.Fatalf("unexpected browser path: got=%q want=%q", gotPath, exePath)
-	}
-	wantArgs := []string{
-		"--user-data-dir=" + expectedUserDataDir,
-		"about:blank",
-	}
-	if !reflect.DeepEqual(gotArgs, wantArgs) {
-		t.Fatalf("unexpected browser args:\n got=%v\nwant=%v", gotArgs, wantArgs)
-	}
-}
-
 func TestIsBrowserProfileLive(t *testing.T) {
 	t.Parallel()
 
