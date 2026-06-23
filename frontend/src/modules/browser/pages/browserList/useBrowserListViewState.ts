@@ -108,10 +108,11 @@ export function useBrowserListDerived(
   )
 
   const filteredProfiles = useMemo(() => {
+    const unifiedKeyword = filters.keyword || filters.kwSearch
     return profiles.filter(profile => {
       if (filters.groupId === '__ungrouped__' && profile.groupId) return false
       if (filters.groupId && filters.groupId !== '__ungrouped__' && profile.groupId !== filters.groupId) return false
-      if (filters.keyword && !profile.profileName.toLowerCase().includes(filters.keyword.toLowerCase())) return false
+      if (unifiedKeyword && !matchesProfileKeyword(profile, unifiedKeyword)) return false
       if (filters.status === 'running' && !profile.running) return false
       if (filters.status === 'stopped' && profile.running) return false
       if (filters.proxyId === '__none__' && (profile.proxyId || profile.proxyConfig)) return false
@@ -121,11 +122,6 @@ export function useBrowserListDerived(
         if (!effectiveCore || effectiveCore.coreId !== filters.coreId) return false
       }
       if (filters.tags.size > 0 && !profile.tags?.some(tag => filters.tags.has(tag))) return false
-      if (filters.kwSearch) {
-        const query = filters.kwSearch.toLowerCase()
-        const hit = profile.keywords?.some(value => value.toLowerCase().includes(query))
-        if (!hit) return false
-      }
       return true
     }).sort((a, b) => naturalCompare(a.profileName, b.profileName))
   }, [profiles, filters, defaultCore, cores])
@@ -141,6 +137,39 @@ export function useBrowserListDerived(
     isProfileBusy,
     getProfileStatus,
   }
+}
+
+function normalizeSearchText(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function normalizeCompactSearchText(value: string): string {
+  return normalizeSearchText(value).replace(/[\s_-]+/g, '')
+}
+
+function matchesProfileKeyword(profile: BrowserProfile, keyword: string): boolean {
+  const query = normalizeSearchText(keyword)
+  if (!query) return true
+
+  const compactQuery = normalizeCompactSearchText(query)
+  const values = [
+    profile.profileName,
+    profile.launchCode,
+    profile.profileId,
+    profile.userDataDir,
+    profile.proxyId,
+    profile.proxyBindName,
+    profile.proxyBindSourceUrl,
+    profile.groupId,
+    ...(profile.tags || []),
+    ...(profile.keywords || []),
+  ]
+
+  return values.some(value => {
+    const text = normalizeSearchText(String(value || ''))
+    if (!text) return false
+    return text.includes(query) || normalizeCompactSearchText(text).includes(compactQuery)
+  })
 }
 
 function naturalCompare(a: string, b: string): number {

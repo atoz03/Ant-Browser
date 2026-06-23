@@ -11,22 +11,23 @@ func buildOutboundFromClashTrojan(node map[string]interface{}) (map[string]inter
 		sni = getMapString(node, "servername")
 	}
 	network := getMapString(node, "network")
-	skipVerify := getMapBool(node, "skip-cert-verify")
-
 	out := map[string]interface{}{
 		"protocol": "trojan",
 		"tag":      "proxy-out",
 		"settings": map[string]interface{}{
-			"address":  host,
-			"port":     port,
-			"password": password,
+			"servers": []interface{}{
+				map[string]interface{}{
+					"address":  host,
+					"port":     port,
+					"password": password,
+				},
+			},
 		},
 	}
 	stream := map[string]interface{}{
 		"security": "tls",
 		"tlsSettings": map[string]interface{}{
-			"serverName":    sni,
-			"allowInsecure": skipVerify,
+			"serverName": sni,
 		},
 	}
 	applyClashTLSClientOptions(node, stream["tlsSettings"].(map[string]interface{}))

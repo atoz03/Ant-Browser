@@ -12,7 +12,7 @@ import {
   buildDirectImportCandidatesFromText,
   buildImportCandidatesFromClash,
   buildImportPreview,
-  createExistingProxyIDPicker,
+  createExistingProxyPicker,
   nextProxyID,
   parseChainImportJSON,
   parseClashImportText,
@@ -49,6 +49,7 @@ export function useProxyImportFlow({
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importMode, setImportMode] = useState<ProxyImportMode>('clash')
   const [importUrl, setImportUrl] = useState('')
+  const [importFetchProxyId, setImportFetchProxyId] = useState('')
   const [importResolvedUrl, setImportResolvedUrl] = useState('')
   const [importText, setImportText] = useState('')
   const [importDnsServers, setImportDnsServers] = useState('')
@@ -87,6 +88,7 @@ export function useProxyImportFlow({
     setImportResolvedUrl('')
     if (nextMode !== 'clash') {
       setImportUrl('')
+      setImportFetchProxyId('')
       setImportDnsServers('')
     }
   }
@@ -158,7 +160,7 @@ export function useProxyImportFlow({
 
     setFetchingImportUrl(true)
     try {
-      const result = await fetchClashImportFromURL(targetURL)
+      const result = await fetchClashImportFromURL(targetURL, importFetchProxyId)
       const content = (result?.content || '').trim()
       if (!content) throw new Error('订阅内容为空')
 
@@ -230,12 +232,15 @@ export function useProxyImportFlow({
       const oldSourceProxies = isURLImport
         ? proxies.filter(item => (item.sourceId || '').trim() === sourceID)
         : []
-      const pickExistingID = createExistingProxyIDPicker(oldSourceProxies)
+      const pickExisting = createExistingProxyPicker(oldSourceProxies)
 
-      const newProxies: BrowserProxy[] = previewList.map((p) => ({
-        proxyId: pickExistingID(p.proxyName, p.proxyConfig) || nextProxyID(),
+      const newProxies: BrowserProxy[] = previewList.map((p) => {
+        const existingProxy = pickExisting(p.proxyName, p.proxyConfig)
+        return {
+        proxyId: existingProxy?.proxyId || nextProxyID(),
         proxyName: p.proxyName,
         proxyConfig: p.proxyConfig,
+        preferredKernel: existingProxy?.preferredKernel || undefined,
         dnsServers: importMode === 'clash' ? importDnsServers.trim() || undefined : undefined,
         groupName: p.groupName.trim() || undefined,
         sourceId: sourceID || undefined,
@@ -244,7 +249,8 @@ export function useProxyImportFlow({
         sourceAutoRefresh,
         sourceRefreshIntervalM,
         sourceLastRefreshAt: sourceLastRefreshAt || undefined,
-      }))
+        }
+      })
       const allProxies = isURLImport
         ? proxies.filter(item => (item.sourceId || '').trim() !== sourceID).concat(newProxies)
         : [...proxies, ...newProxies]
@@ -254,6 +260,7 @@ export function useProxyImportFlow({
       }
       setPreviewModalOpen(false)
       setImportUrl('')
+      setImportFetchProxyId('')
       setImportResolvedUrl('')
       setImportText('')
       setImportDnsServers('')
@@ -283,11 +290,11 @@ export function useProxyImportFlow({
         && !!chainImportForm.second.port.trim()
 
   return {
-    importModalOpen, setImportModalOpen, importMode, importUrl, importResolvedUrl, importText,
+    importModalOpen, setImportModalOpen, importMode, importUrl, importFetchProxyId, importResolvedUrl, importText,
     importDnsServers, importNamePrefix, importGroupName, chainImportText, directImportText,
     chainImportForm, directImportForm, previewModalOpen, setPreviewModalOpen, previewList, removedPreviewProxyNames,
     importing, fetchingImportUrl, canParseImport, setImportText, setImportDnsServers,
-    setImportNamePrefix, setImportGroupName, setChainImportText, setDirectImportText,
+    setImportNamePrefix, setImportGroupName, setImportFetchProxyId, setChainImportText, setDirectImportText,
     setChainImportForm, setDirectImportForm, handleRemovePreviewProxy, updateChainImportHop,
     handleImportModeChange, handleFillChainTemplate, handleFillDirectTemplate, handleCopyChainTemplate,
     handleCopyDirectTemplate, handleApplyChainJSON, handleApplyDirectText, handleImportUrlChange,

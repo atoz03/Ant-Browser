@@ -1,9 +1,10 @@
 ﻿import { useState } from 'react'
 import { toast } from '../../../shared/components'
-import type { BrowserProfile, BrowserProfileCopyOptions } from '../types'
+import type { BrowserProfile, BrowserProfileCopyOptions, BrowserProxy } from '../types'
 import { BrowserCoreEditorModal, BrowserListHeader, BrowserListSettingsModal } from '../components/BrowserListLayout'
 import { BatchToolbar } from '../components/BrowserListWidgets'
 import { BrowserProfilesPanel } from '../components/BrowserProfilesPanel'
+import { ProxyPickerModal } from '../components/ProxyPickerModal'
 import { ProfileExtensionModal } from '../components/ProfileExtensionModal'
 import { createBrowserProfileCopyOptions, isBrowserProfileCopyOptionsValid } from '../copyOptions'
 import { buildBrowserProfileCopyName } from '../copyName'
@@ -17,9 +18,15 @@ import { warmupProfileProxyBeforeStart } from '../utils/proxyWarmup'
 import {
   copyBrowserProfile,
   deleteBrowserProfile,
+  fetchBrowserProfileTrash,
+  permanentlyDeleteBrowserProfile,
+  restoreBrowserProfile,
   startBrowserInstance,
   stopBrowserInstance,
+  updateBrowserProfile,
 } from '../api'
+
+const directProxyID = '__direct__'
 
 export function BrowserListPage() {
   const {
@@ -33,6 +40,13 @@ export function BrowserListPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean
+    mode: 'single' | 'batch'
+    profileId?: string
+    profileName?: string
+    count: number
+  }>({ open: false, mode: 'single', count: 0 })
 
   // 代理不支持弹窗
   const [proxyErrorModal, setProxyErrorModal] = useState(false)
@@ -50,11 +64,22 @@ export function BrowserListPage() {
   const openExtensionModal = (profile: BrowserProfile) => setExtensionModal({ open: true, profile })
   const closeExtensionModal = () => setExtensionModal({ open: false, profile: null })
 
+  const [proxyPickerProfile, setProxyPickerProfile] = useState<BrowserProfile | null>(null)
+
   // 复制弹窗
   const [copyModal, setCopyModal] = useState<{ open: boolean; profile: BrowserProfile | null }>({ open: false, profile: null })
   const [copyName, setCopyName] = useState('')
   const [copyOptions, setCopyOptions] = useState<BrowserProfileCopyOptions>(() => createBrowserProfileCopyOptions())
   const [copying, setCopying] = useState(false)
+  const [trashModalOpen, setTrashModalOpen] = useState(false)
+  const [trashProfiles, setTrashProfiles] = useState<BrowserProfile[]>([])
+  const [trashLoading, setTrashLoading] = useState(false)
+  const [restoringId, setRestoringId] = useState('')
+  const [permanentlyDeletingId, setPermanentlyDeletingId] = useState('')
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState<{ open: boolean; profile: BrowserProfile | null }>({
+    open: false,
+    profile: null,
+  })
 
   const openCopyModal = (profile: BrowserProfile) => {
     setCopyName(buildBrowserProfileCopyName(profile.profileName))
@@ -113,6 +138,7 @@ export function BrowserListPage() {
     updatePendingIds,
     updateProfilesState,
     mergeProfileState,
+    updateProxiesState,
     loadProfiles,
   } = useBrowserListData({ loadQuota, loadCores })
   const {
@@ -131,7 +157,6 @@ export function BrowserListPage() {
     handleStartDirect,
     handleStop,
     handleRestart,
-    handleDelete,
   } = useBrowserProfileActions({
     profiles,
     setProxyErrorModal,
@@ -234,18 +259,97 @@ export function BrowserListPage() {
     loadProfiles()
   }
 
-  const handleBatchDelete = async () => {
+  const openDeleteConfirm = (profileId: string) => {
+    const profile = profiles.find(item => item.profileId === profileId)
+    setDeleteConfirm({
+      open: true,
+      mode: 'single',
+      profileId,
+      profileName: profile?.profileName,
+      count: 1,
+    })
+  }
+
+  const loadTrashProfiles = async () => {
+    setTrashLoading(true)
+    try {
+      setTrashProfiles(await fetchBrowserProfileTrash())
+    } catch (error: any) {
+      toast.error(error?.message || '加载回收站失败')
+    } finally {
+      setTrashLoading(false)
+    }
+  }
+
+  const openTrashModal = () => {
+    setTrashModalOpen(true)
+    void loadTrashProfiles()
+  }
+
+  const handleRestoreProfile = async (profileId: string) => {
+    setRestoringId(profileId)
+    try {
+      await restoreBrowserProfile(profileId)
+      toast.success('实例已恢复')
+      await loadTrashProfiles()
+      await loadProfiles()
+    } catch (error: any) {
+      toast.error(error?.message || '恢复失败')
+    } finally {
+      setRestoringId('')
+    }
+  }
+
+  const handleConfirmPermanentDelete = async () => {
+    const profile = permanentDeleteConfirm.profile
+    if (!profile) return
+    setPermanentlyDeletingId(profile.profileId)
+    try {
+      await permanentlyDeleteBrowserProfile(profile.profileId)
+      toast.success('实例已彻底删除')
+      setPermanentDeleteConfirm({ open: false, profile: null })
+      await loadTrashProfiles()
+    } catch (error: any) {
+      toast.error(error?.message || '彻底删除失败')
+    } finally {
+      setPermanentlyDeletingId('')
+    }
+  }
+
+  const openBatchDeleteConfirm = () => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    if (!confirm(`确定删除选中的 ${ids.length} 个实例？`)) return
+    setDeleteConfirm({ open: true, mode: 'batch', count: ids.length })
+  }
+
+  const closeDeleteConfirm = () => {
+    if (batchLoading) return
+    setDeleteConfirm({ open: false, mode: 'single', count: 0 })
+  }
+
+  const handleConfirmDelete = async () => {
+    const ids = deleteConfirm.mode === 'batch'
+      ? Array.from(selectedIds)
+      : deleteConfirm.profileId ? [deleteConfirm.profileId] : []
+    if (ids.length === 0) return
     setBatchLoading(true)
-    for (const id of ids) {
-      await deleteBrowserProfile(id)
+    try {
+      for (const id of ids) {
+        await deleteBrowserProfile(id)
+      }
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        ids.forEach(id => next.delete(id))
+        return next
+      })
+      toast.success(ids.length > 1 ? `已删除 ${ids.length} 个实例` : '配置已删除')
+      setDeleteConfirm({ open: false, mode: 'single', count: 0 })
+      loadProfiles()
+    } catch (error: any) {
+      toast.error(error?.message || '删除失败')
+    } finally {
+      setBatchLoading(false)
     }
-    setBatchLoading(false)
-    setSelectedIds(new Set())
-    toast.success(`已删除 ${ids.length} 个实例`)
-    loadProfiles()
   }
 
   const handleCopy = async (profileId: string) => {
@@ -266,6 +370,36 @@ export function BrowserListPage() {
   const copyConfirmDisabled =
     !copyName.trim() || !isBrowserProfileCopyOptionsValid(copyOptions)
 
+  const saveProfileProxy = async (profile: BrowserProfile, proxy: BrowserProxy) => {
+    try {
+      const updated = await updateBrowserProfile(profile.profileId, {
+        profileName: profile.profileName,
+        userDataDir: profile.userDataDir,
+        coreId: profile.coreId,
+        fingerprintArgs: profile.fingerprintArgs,
+        proxyId: proxy.proxyId,
+        proxyConfig: '',
+        launchArgs: profile.launchArgs,
+        tags: profile.tags,
+        keywords: profile.keywords || [],
+        groupId: profile.groupId || '',
+      })
+      mergeProfileState(updated || { ...profile, proxyId: proxy.proxyId, proxyConfig: '' })
+      toast.success('代理已切换')
+    } catch (error: any) {
+      toast.error(error?.message || '切换代理失败')
+    }
+  }
+
+  const handleProxyDeletedFromPicker = (deletedProxyId: string, nextProxies: BrowserProxy[]) => {
+    updateProxiesState(nextProxies)
+    if (!proxyPickerProfile || proxyPickerProfile.proxyId !== deletedProxyId) return
+    const fallbackProxy = nextProxies.find(proxy => proxy.proxyId === directProxyID || proxy.proxyConfig === 'direct://')
+    if (fallbackProxy) {
+      void saveProfileProxy(proxyPickerProfile, fallbackProxy)
+    }
+  }
+
 
   return (
     <div className="overflow-auto p-5 space-y-5 animate-fade-in h-full">
@@ -284,6 +418,7 @@ export function BrowserListPage() {
         onToggleHeaderCollapsed={() => setHeaderCollapsed((prev) => !prev)}
         onRefresh={() => { void loadProfiles() }}
         onOpenSettings={handleOpenSettings}
+        onOpenTrash={openTrashModal}
         onOpenExpandModal={() => {
           setExpandModalOpen(true)
           loadQuota()
@@ -299,7 +434,7 @@ export function BrowserListPage() {
         onDeselectAll={handleDeselectAll}
         onBatchStart={handleBatchStart}
         onBatchStop={handleBatchStop}
-        onBatchDelete={handleBatchDelete}
+        onBatchDelete={openBatchDeleteConfirm}
         batchLoading={batchLoading}
       />
 
@@ -325,7 +460,22 @@ export function BrowserListPage() {
         onOpenKeywords={openKwModal}
         onOpenExtensions={openExtensionModal}
         onOpenCopy={openCopyModal}
-        onDelete={(profileId) => { void handleDelete(profileId) }}
+        onOpenProxyPicker={setProxyPickerProfile}
+        onDelete={openDeleteConfirm}
+      />
+
+      <ProxyPickerModal
+        open={!!proxyPickerProfile}
+        currentProxyId={proxyPickerProfile?.proxyId || directProxyID}
+        title={proxyPickerProfile ? `切换代理：${proxyPickerProfile.profileName}` : '切换代理'}
+        onSelect={(proxy) => {
+          if (proxyPickerProfile) {
+            void saveProfileProxy(proxyPickerProfile, proxy)
+          }
+        }}
+        onProxyListUpdated={updateProxiesState}
+        onProxyDeleted={handleProxyDeletedFromPicker}
+        onClose={() => setProxyPickerProfile(null)}
       />
 
       <ProfileExtensionModal
@@ -406,6 +556,21 @@ export function BrowserListPage() {
         onConfirmCopy={() => copyModal.profile && handleCopy(copyModal.profile.profileId)}
         copyConfirmDisabled={copyConfirmDisabled}
         copying={copying}
+        deleteConfirm={deleteConfirm}
+        deleting={batchLoading}
+        onCloseDeleteConfirm={closeDeleteConfirm}
+        onConfirmDelete={() => { void handleConfirmDelete() }}
+        trashModalOpen={trashModalOpen}
+        trashProfiles={trashProfiles}
+        trashLoading={trashLoading}
+        restoringId={restoringId}
+        permanentlyDeletingId={permanentlyDeletingId}
+        permanentDeleteConfirm={permanentDeleteConfirm}
+        onCloseTrash={() => setTrashModalOpen(false)}
+        onRestoreProfile={(profileId) => { void handleRestoreProfile(profileId) }}
+        onOpenPermanentDelete={(profile) => setPermanentDeleteConfirm({ open: true, profile })}
+        onClosePermanentDelete={() => setPermanentDeleteConfirm({ open: false, profile: null })}
+        onConfirmPermanentDelete={() => { void handleConfirmPermanentDelete() }}
         opError={opError}
         onCloseOpError={() => setOpError('')}
       />

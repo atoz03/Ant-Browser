@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -97,5 +98,24 @@ func TestBrowserProxyFetchClashByURLAllFallbackErrorsHideURL(t *testing.T) {
 		if strings.Contains(errText, forbidden) {
 			t.Fatalf("error %q leaked %q", errText, forbidden)
 		}
+	}
+}
+
+func TestNormalizeClashSubscriptionContentSupportsBase64URIList(t *testing.T) {
+	raw := "anytls://secret@example.com:443?sni=sni.example.com&insecure=1#AnyTLS%20Node\n" +
+		"trojan://pass@trojan.example.com:8443?sni=trojan-sni.example.com#Trojan%20Node"
+	encoded := base64.StdEncoding.EncodeToString([]byte(raw))
+	content, payload, err := normalizeClashSubscriptionContent([]byte(encoded))
+	if err != nil {
+		t.Fatalf("normalizeClashSubscriptionContent returned error: %v", err)
+	}
+	if count := clashProxyCount(payload); count != 2 {
+		t.Fatalf("proxy count = %d, want 2", count)
+	}
+	if !strings.Contains(content, "type: anytls") {
+		t.Fatalf("content does not contain anytls node: %s", content)
+	}
+	if !strings.Contains(content, "type: trojan") {
+		t.Fatalf("content does not contain trojan node: %s", content)
 	}
 }

@@ -189,6 +189,21 @@ var migrations = []migration{
 			`ALTER TABLE browser_extensions ADD COLUMN icon_data_url TEXT NOT NULL DEFAULT ''`,
 		},
 	},
+	{
+		version: 11,
+		desc:    "实例表添加回收站字段",
+		stmts: []string{
+			`ALTER TABLE browser_profiles ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''`,
+			`CREATE INDEX IF NOT EXISTS idx_browser_profiles_deleted_at ON browser_profiles(deleted_at)`,
+		},
+	},
+	{
+		version: 12,
+		desc:    "代理表添加指定内核字段",
+		stmts: []string{
+			`ALTER TABLE browser_proxies ADD COLUMN preferred_kernel TEXT NOT NULL DEFAULT ''`,
+		},
+	},
 	// ── 新版本在此追加，格式：
 	// {
 	//     version: 4,

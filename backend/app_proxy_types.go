@@ -16,7 +16,18 @@ type ProxyTestResult struct {
 	ProxyId   string `json:"proxyId"`
 	Ok        bool   `json:"ok"`
 	LatencyMs int64  `json:"latencyMs"`
+	Engine    string `json:"engine"`
 	Error     string `json:"error"`
+}
+
+func buildProxyTestResult(result proxy.TestResult) ProxyTestResult {
+	return ProxyTestResult{
+		ProxyId:   result.ProxyId,
+		Ok:        result.Ok,
+		LatencyMs: result.LatencyMs,
+		Engine:    result.Engine,
+		Error:     result.Error,
+	}
 }
 
 type ProxyBrowserProbeRequest struct {

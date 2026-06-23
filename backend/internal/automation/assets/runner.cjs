@@ -15,6 +15,58 @@ const { loadScriptModule } = require('./runner_script_loader.cjs');
 
 const ALLOWED_WAIT_UNTIL = new Set(['load', 'domcontentloaded', 'networkidle', 'commit']);
 
+function getPageURL(page) {
+  if (!page || typeof page.url !== 'function') {
+    return '';
+  }
+  try {
+    return String(page.url() || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function normalizeComparableURL(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  if (text === 'about:blank') {
+    return text;
+  }
+  try {
+    return new URL(text).toString();
+  } catch {
+    return text;
+  }
+}
+
+function shouldReuseExistingPageByDefault(page, targetURL) {
+  const currentURL = normalizeComparableURL(getPageURL(page));
+  if (!currentURL || currentURL === 'about:blank') {
+    return true;
+  }
+  const nextURL = normalizeComparableURL(targetURL);
+  return nextURL !== '' && currentURL === nextURL;
+}
+
+function hasOpenPageIntent(options) {
+  const openOptions = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+  if (String(openOptions.url || '').trim()) {
+    return true;
+  }
+  if (openOptions.permissions !== undefined) {
+    return true;
+  }
+  if (typeof openOptions.permissionOrigin === 'string' && openOptions.permissionOrigin.trim()) {
+    return true;
+  }
+  if (openOptions.reuseCurrentPage === true || openOptions.bringToFront === true) {
+    return true;
+  }
+  return false;
+}
+
 function buildLaunchRequestBody(defaultSelector, options) {
   const launchOptions = options && typeof options === 'object' ? options : {};
   const body = {};
@@ -49,6 +101,10 @@ function buildLaunchRequestBody(defaultSelector, options) {
       : defaultSelector;
   if (selector && typeof selector === 'object' && !Array.isArray(selector) && Object.keys(selector).length > 0) {
     body.selector = selector;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(body, 'skipDefaultStartUrls')) {
+    body.skipDefaultStartUrls = true;
   }
 
   return body;
@@ -259,22 +315,28 @@ async function runScriptTask(payload, chromium) {
       options && typeof options === 'object' && !Array.isArray(options) ? options : {};
     const { browser, context } = await resolveConnectionContext(connection);
     const shouldReuseCurrentPage = openOptions.reuseCurrentPage === true;
+    const hasReuseCurrentPageOption = Object.prototype.hasOwnProperty.call(
+      openOptions,
+      'reuseCurrentPage'
+    );
+    const targetURL = String(openOptions.url || '').trim();
 
     let page = null;
+    const currentPage = connection && connection.page ? connection.page : null;
     if (
-      shouldReuseCurrentPage &&
-      connection &&
-      connection.page &&
-      typeof connection.page.isClosed === 'function' &&
-      !connection.page.isClosed()
+      currentPage &&
+      typeof currentPage.isClosed === 'function' &&
+      !currentPage.isClosed() &&
+      (shouldReuseCurrentPage ||
+        (!hasReuseCurrentPageOption && shouldReuseExistingPageByDefault(currentPage, targetURL)))
     ) {
-      page = connection.page;
+      page = currentPage;
     }
-    if (!page) {
+    if (!page && targetURL) {
       page = await context.newPage();
     }
 
-    if (typeof page.bringToFront === 'function' && openOptions.bringToFront !== false) {
+    if (page && typeof page.bringToFront === 'function' && openOptions.bringToFront !== false) {
       await page.bringToFront().catch(() => {});
     }
 
@@ -294,7 +356,6 @@ async function runScriptTask(payload, chromium) {
             reason: '',
           };
 
-    const targetURL = String(openOptions.url || '').trim();
     if (targetURL) {
       const waitUntil = ALLOWED_WAIT_UNTIL.has(String(openOptions.waitUntil || '').trim())
         ? String(openOptions.waitUntil).trim()
@@ -368,7 +429,20 @@ async function runScriptTask(payload, chromium) {
 
     const session = await launch(launchOptions);
     const connection = await connect(session, connectOptions);
-    const opened = await openPage(connection, openOptions);
+    const opened = hasOpenPageIntent(openOptions)
+      ? await openPage(connection, openOptions)
+      : {
+          browser: connection.browser,
+          context: connection.context,
+          page: connection.page || null,
+          permissionResult: {
+            applied: false,
+            permissions: [],
+            origin: '',
+            reason: '',
+          },
+          reusedPage: Boolean(connection.page),
+        };
     return {
       session,
       connection,

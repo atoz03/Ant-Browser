@@ -33,6 +33,7 @@ type Profile struct {
 	LastError          string   `json:"lastError"`
 	CreatedAt          string   `json:"createdAt"`
 	UpdatedAt          string   `json:"updatedAt"`
+	DeletedAt          string   `json:"deletedAt"`
 	LastStartAt        string   `json:"lastStartAt"`
 	LastStopAt         string   `json:"lastStopAt"`
 }

@@ -407,7 +407,7 @@ export function nextProxyID(): string {
   return `proxy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function createExistingProxyIDPicker(oldSourceProxies: BrowserProxy[]) {
+export function createExistingProxyPicker(oldSourceProxies: BrowserProxy[]) {
   const exactMap = new Map<string, BrowserProxy[]>()
   const nameMap = new Map<string, BrowserProxy[]>()
   oldSourceProxies.forEach(item => {
@@ -422,20 +422,25 @@ export function createExistingProxyIDPicker(oldSourceProxies: BrowserProxy[]) {
     nameMap.set(nameKey, nameList)
   })
 
-  return (name: string, configText: string): string | null => {
+  return (name: string, configText: string): BrowserProxy | null => {
     const exactKey = `${name}|||${configText}`
     const exactList = exactMap.get(exactKey)
     if (exactList && exactList.length > 0) {
       const item = exactList.shift()
-      if (item?.proxyId) return item.proxyId
+      if (item?.proxyId) return item
     }
 
     const nameList = nameMap.get(name)
     if (nameList && nameList.length > 0) {
       const item = nameList.shift()
-      if (item?.proxyId) return item.proxyId
+      if (item?.proxyId) return item
     }
     return null
   }
+}
+
+export function createExistingProxyIDPicker(oldSourceProxies: BrowserProxy[]) {
+  const pickExisting = createExistingProxyPicker(oldSourceProxies)
+  return (name: string, configText: string): string | null => pickExisting(name, configText)?.proxyId || null
 }
 

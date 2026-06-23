@@ -326,8 +326,16 @@ export function BrowserProfileListByTag(arg1) {
   return window['go']['main']['App']['BrowserProfileListByTag'](arg1);
 }
 
+export function BrowserProfilePermanentlyDelete(arg1) {
+  return window['go']['main']['App']['BrowserProfilePermanentlyDelete'](arg1);
+}
+
 export function BrowserProfileRegenerateCode(arg1) {
   return window['go']['main']['App']['BrowserProfileRegenerateCode'](arg1);
+}
+
+export function BrowserProfileRestore(arg1) {
+  return window['go']['main']['App']['BrowserProfileRestore'](arg1);
 }
 
 export function BrowserProfileSetCode(arg1, arg2) {
@@ -336,6 +344,14 @@ export function BrowserProfileSetCode(arg1, arg2) {
 
 export function BrowserProfileSetKeywords(arg1, arg2) {
   return window['go']['main']['App']['BrowserProfileSetKeywords'](arg1, arg2);
+}
+
+export function BrowserProfileTrashCleanup() {
+  return window['go']['main']['App']['BrowserProfileTrashCleanup']();
+}
+
+export function BrowserProfileTrashList() {
+  return window['go']['main']['App']['BrowserProfileTrashList']();
 }
 
 export function BrowserProfileUpdate(arg1, arg2) {
@@ -380,6 +396,10 @@ export function BrowserProxyCoreStatus(arg1) {
 
 export function BrowserProxyFetchClashByURL(arg1) {
   return window['go']['main']['App']['BrowserProxyFetchClashByURL'](arg1);
+}
+
+export function BrowserProxyFetchClashByURLWithProxy(arg1, arg2) {
+  return window['go']['main']['App']['BrowserProxyFetchClashByURLWithProxy'](arg1, arg2);
 }
 
 export function BrowserProxyList() {

@@ -20,7 +20,7 @@ func cloneStringInterfaceMap(items map[string]interface{}) map[string]interface{
 	return cloned
 }
 
-func (m *SingBoxManager) restartBridgeOnSamePort(log *logger.Logger, key string, bridge *SingBoxBridge) error {
+func (m *SingBoxManager) restartBridgeOnSamePort(log *logger.Logger, key string, bridge *SingBoxBridge, refCount int) error {
 	if bridge == nil {
 		return fmt.Errorf("sing-box 桥接不存在")
 	}
@@ -50,6 +50,7 @@ func (m *SingBoxManager) restartBridgeOnSamePort(log *logger.Logger, key string,
 		return err
 	}
 	restarted.RestartCount = bridge.RestartCount + 1
+	restarted.RefCount = refCount
 	restarted.LastUsedAt = time.Now()
 	m.mu.Lock()
 	if current := m.Bridges[key]; current != bridge {

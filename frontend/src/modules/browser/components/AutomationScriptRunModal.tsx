@@ -118,7 +118,6 @@ export function AutomationScriptRunModal({
     usesStoredTargetConfig,
     selectorText,
     setSelectorText,
-    demoSession,
     setDemoSession,
     reloadDemoSession,
   });

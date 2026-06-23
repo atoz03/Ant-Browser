@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"ant-chrome/backend/internal/launchcode"
@@ -17,14 +18,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// newTestDB 创建内存 SQLite 数据库并执行建表迁移
-func newTestDB(t *testing.T) *sql.DB {
+var testDBSequence uint64
+
+func setupLaunchCodeSchema(t *testing.T, db *sql.DB) {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file::memory:?cache=shared&_journal_mode=WAL")
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS launch_codes (
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS launch_codes (
 		profile_id TEXT PRIMARY KEY,
 		code       TEXT NOT NULL UNIQUE,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -37,8 +35,28 @@ func newTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("建索引失败: %v", err)
 	}
+}
+
+// newTestDB 创建内存 SQLite 数据库并执行建表迁移
+func newTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:launchcode_test_%d?mode=memory&cache=shared", atomic.AddUint64(&testDBSequence, 1)))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	setupLaunchCodeSchema(t, db)
 	t.Cleanup(func() { db.Close() })
 	return db
+}
+
+func newIsolatedTestDB(t *testing.T) (*sql.DB, func()) {
+	t.Helper()
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:launchcode_prop_%d?mode=memory&cache=shared", atomic.AddUint64(&testDBSequence, 1)))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	setupLaunchCodeSchema(t, db)
+	return db, func() { _ = db.Close() }
 }
 
 // newFileTestDB 创建基于文件的 SQLite 数据库（用于需要独立隔离的测试）
@@ -85,7 +103,8 @@ func TestProperty2_PersistenceRoundTrip(t *testing.T) {
 
 	properties.Property("Upsert 后 FindProfileId 返回正确 profileId", prop.ForAll(
 		func(profileId, code string) bool {
-			db := newFileTestDB(t)
+			db, cleanup := newIsolatedTestDB(t)
+			defer cleanup()
 			dao := launchcode.NewSQLiteLaunchCodeDAO(db)
 
 			if err := dao.Upsert(profileId, code); err != nil {
@@ -100,7 +119,8 @@ func TestProperty2_PersistenceRoundTrip(t *testing.T) {
 
 	properties.Property("Upsert 后 FindCode 返回正确 code", prop.ForAll(
 		func(profileId, code string) bool {
-			db := newFileTestDB(t)
+			db, cleanup := newIsolatedTestDB(t)
+			defer cleanup()
 			dao := launchcode.NewSQLiteLaunchCodeDAO(db)
 
 			if err := dao.Upsert(profileId, code); err != nil {
@@ -118,7 +138,8 @@ func TestProperty2_PersistenceRoundTrip(t *testing.T) {
 			if code1 == code2 {
 				return true // 跳过相同 code 的情况
 			}
-			db := newFileTestDB(t)
+			db, cleanup := newIsolatedTestDB(t)
+			defer cleanup()
 			dao := launchcode.NewSQLiteLaunchCodeDAO(db)
 
 			if err := dao.Upsert(profileId, code1); err != nil {
@@ -145,7 +166,8 @@ func TestProperty2_DeleteRemovesMapping(t *testing.T) {
 
 	properties.Property("Delete 后 FindCode 返回错误", prop.ForAll(
 		func(profileId, code string) bool {
-			db := newFileTestDB(t)
+			db, cleanup := newIsolatedTestDB(t)
+			defer cleanup()
 			dao := launchcode.NewSQLiteLaunchCodeDAO(db)
 
 			if err := dao.Upsert(profileId, code); err != nil {

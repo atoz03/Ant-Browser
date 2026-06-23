@@ -150,7 +150,7 @@ module.exports.run = async ({ launch, connect, selector, params, log, artifact }
 	}
 }
 
-func TestRunScriptTaskOpenPageCreatesFreshPageAndGrantsPermissions(t *testing.T) {
+func TestRunScriptTaskOpenPageReusesInitialBlankPageAndGrantsPermissions(t *testing.T) {
 	nodeExecPath := lookupNodeExecutable(t)
 
 	cfg := config.DefaultConfig()
@@ -243,8 +243,8 @@ func TestRunScriptTaskOpenPageCreatesFreshPageAndGrantsPermissions(t *testing.T)
 	if parsed["permissionOrigin"] != "https://example.com" {
 		t.Fatalf("unexpected permissionOrigin: %+v", parsed)
 	}
-	if parsed["reusedPage"] != false {
-		t.Fatalf("expected reusedPage to be false, got %+v", parsed)
+	if parsed["reusedPage"] != true {
+		t.Fatalf("expected reusedPage to be true, got %+v", parsed)
 	}
 	if parsed["url"] != "https://example.com/inbox" {
 		t.Fatalf("unexpected url: %+v", parsed)

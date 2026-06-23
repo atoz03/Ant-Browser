@@ -119,6 +119,14 @@ Ant Browser 适合以下场景：
 - 支持手动维护代理和导入 Clash
 - 支持查看延迟、IP 健康并挑选可用节点
 
+代理连接栈规则：
+
+- `default_connector_type` 只有两套连接栈：`xray` 和 `mihomo`。
+- `xray` 表示 Xray + sing-box 组合栈：Xray 负责 vmess/vless/trojan/shadowsocks/链式代理等，sing-box 负责 hysteria2/tuic/anytls 等协议。
+- `mihomo` 表示独立 Mihomo 栈：需要桥接的代理统一走 mihomo。
+- 实例启动、代理测速、真实连通性、IP 健康、预热和插件下载代理必须按当前连接栈执行；不得在 `xray` 组合栈和 `mihomo` 栈之间自动混用。
+- 详细约束见 `docs/proxy-connector-stacks.md`。
+
 ### 4. 代理生效验证
 
 <img src="images/readme/004-自定义代理.png" alt="代理生效验证" width="100%" />
@@ -272,6 +280,8 @@ chrome/
 ### 2. 实例启动了但代理没有生效怎么办？
 
 先检查代理节点本身是否可用，再确认该实例已经正确绑定代理。建议启动后访问 IP 检测网站复核当前出口。
+
+如果代理池里本地客户端可用节点很多，但 Ant Browser 中“只展示可用”数量明显偏少，先确认当前 `default_connector_type` 是否与本地客户端一致。Ant Browser 不会在 `xray` 组合栈和 `mihomo` 栈之间自动混用；切换连接栈后需要重新测速。
 
 ### 3. 实例太多，怎么快速找到目标实例？
 

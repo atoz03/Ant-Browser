@@ -137,6 +137,9 @@ func (a *App) startupInitManagers(cfg *config.Config, db *database.DB) {
 	a.migrateToSQLite()
 
 	a.browserMgr.InitData()
+	if err := a.browserMgr.CleanupExpiredTrash(); err != nil {
+		logger.New("Browser").Error("启动清理回收站失败", logger.F("error", err))
+	}
 	a.autoDetectCores()
 	a.loadProxies()
 	a.reconcileProfileProxyBindings()
@@ -203,7 +206,8 @@ func (a *App) startupInitSpeedScheduler() {
 	a.speedScheduler = browser.NewProxySpeedScheduler(
 		a.browserMgr.ProxyDAO,
 		func(proxyId string) (bool, int64, string) {
-			r := proxy.TestRealConnectivityWithConfig(proxyId, a.config.Browser.Proxies, a.xrayMgr, a.singboxMgr, nil)
+			connectorType := config.NormalizeBrowserConnectorType(a.config.Browser.DefaultConnectorType)
+			r := a.testProxySpeedWithConnector(proxyId, a.getLatestProxies(), connectorType)
 			return r.Ok, r.LatencyMs, r.Error
 		},
 		5*time.Minute,

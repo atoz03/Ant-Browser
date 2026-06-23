@@ -320,7 +320,7 @@ func TestAutomationScriptRunWithOptionsAllowsSameScriptOnDifferentProfiles(t *te
 		Type:       "playwright-cdp",
 		Status:     "ready",
 		EntryFile:  "scripts/index.cjs",
-		ScriptText: "module.exports.run = async () => {\n  await new Promise((resolve) => setTimeout(resolve, 800))\n  return { ok: true, summary: 'slow ok' }\n}\n",
+		ScriptText: "module.exports.run = async () => {\n  await new Promise((resolve) => setTimeout(resolve, 120))\n  return { ok: true, summary: 'slow ok' }\n}\n",
 	})
 	if err != nil {
 		t.Fatalf("AutomationScriptSave returned error: %v", err)
@@ -376,7 +376,7 @@ func TestAutomationScriptRunWithOptionsBlocksDifferentScriptsOnSameProfile(t *te
 		Type:       "playwright-cdp",
 		Status:     "ready",
 		EntryFile:  "scripts/index.cjs",
-		ScriptText: "module.exports.run = async () => {\n  await new Promise((resolve) => setTimeout(resolve, 800))\n  return { ok: true, summary: 'slow ok a' }\n}\n",
+		ScriptText: "module.exports.run = async () => {\n  await new Promise((resolve) => setTimeout(resolve, 120))\n  return { ok: true, summary: 'slow ok a' }\n}\n",
 	})
 	if err != nil {
 		t.Fatalf("AutomationScriptSave returned error: %v", err)
@@ -387,7 +387,7 @@ func TestAutomationScriptRunWithOptionsBlocksDifferentScriptsOnSameProfile(t *te
 		Type:       "playwright-cdp",
 		Status:     "ready",
 		EntryFile:  "scripts/index.cjs",
-		ScriptText: "module.exports.run = async () => {\n  await new Promise((resolve) => setTimeout(resolve, 800))\n  return { ok: true, summary: 'slow ok b' }\n}\n",
+		ScriptText: "module.exports.run = async () => {\n  await new Promise((resolve) => setTimeout(resolve, 120))\n  return { ok: true, summary: 'slow ok b' }\n}\n",
 	})
 	if err != nil {
 		t.Fatalf("AutomationScriptSave returned error: %v", err)

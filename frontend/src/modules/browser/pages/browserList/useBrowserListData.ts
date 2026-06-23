@@ -96,6 +96,10 @@ export function useBrowserListData({ loadQuota, loadCores }: UseBrowserListDataO
     setGroups(await fetchGroups())
   }
 
+  const updateProxiesState = (items: BrowserProxy[]) => {
+    setProxies(items)
+  }
+
   useEffect(() => {
     void loadProfiles()
     loadGroups()
@@ -153,6 +157,7 @@ export function useBrowserListData({ loadQuota, loadCores }: UseBrowserListDataO
     updatePendingIds,
     updateProfilesState,
     mergeProfileState,
+    updateProxiesState,
     loadProfiles,
   }
 }

@@ -37,15 +37,19 @@ func (a *App) ValidateProxyConfig(proxyConfig string, proxyId string) ProxyValid
 func (a *App) TestProxyConnectivity(proxyId string, proxyConfig string) ProxyTestResult {
 	proxies := a.getLatestProxies()
 	result := proxy.TestConnectivity(proxyId, proxyConfig, proxies, nil)
-	return ProxyTestResult{ProxyId: result.ProxyId, Ok: result.Ok, LatencyMs: result.LatencyMs, Error: result.Error}
+	if result.Engine == "" {
+		result.Engine = "tcp"
+	}
+	return buildProxyTestResult(result)
 }
 
 // TestProxyRealConnectivity 通过真实 HTTP 请求测试代理连通性（Wails 绑定）
 // 参考 Clash URLTest 策略：多 URL fallback + 复用桥接 + TCP ping 降级
 func (a *App) TestProxyRealConnectivity(proxyId string) ProxyTestResult {
 	proxies := a.getLatestProxies()
-	result := proxy.TestRealConnectivityWithRuntimeConfig(proxyId, proxies, a.xrayMgr, a.singboxMgr, a.clashMgr, config.NormalizeBrowserConnectorType(a.config.Browser.DefaultConnectorType), nil)
-	return ProxyTestResult{ProxyId: result.ProxyId, Ok: result.Ok, LatencyMs: result.LatencyMs, Error: result.Error}
+	connectorType := config.NormalizeBrowserConnectorType(a.config.Browser.DefaultConnectorType)
+	result := proxy.TestRealConnectivityWithRuntimeConfig(proxyId, proxies, a.xrayMgr, a.singboxMgr, a.clashMgr, connectorType, a.proxySpeedTestConfig())
+	return buildProxyTestResult(result)
 }
 
 // BrowserProxyWarmupBridge 只预热本地代理桥接，不执行外网测速。
@@ -106,43 +110,50 @@ func (a *App) warmupProxyBridge(proxyId string, proxyConfig string, proxies []Br
 		result.Error = "代理配置为空"
 		return result
 	}
-	if strings.EqualFold(src, "direct://") {
-		result.Ok = true
-		result.Engine = "direct"
+
+	resolution, err := proxy.ResolveProxyKernel(src, proxies, proxyId, "")
+	result.Engine = resolution.Kernel
+	if err != nil {
+		result.Error = err.Error()
 		result.LatencyMs = time.Since(startedAt).Milliseconds()
 		return result
 	}
-	if !proxy.RequiresBridge(src, proxies, proxyId) && !proxy.RequiresLocalProxyBridgeForBrowser(src) && !proxy.IsSingBoxProtocol(src) {
+	if resolution.Kernel == proxy.ProxyKernelNative {
 		result.Ok = true
-		result.Engine = "none"
+		if strings.EqualFold(src, "direct://") {
+			result.Engine = "direct"
+		}
 		result.LatencyMs = time.Since(startedAt).Milliseconds()
 		return result
 	}
 
 	var socksURL string
-	var err error
-	connectorType := config.NormalizeBrowserConnectorType(a.config.Browser.DefaultConnectorType)
-	if connectorType == config.BrowserConnectorMihomo {
-		result.Engine = "mihomo"
+	switch resolution.Kernel {
+	case proxy.ProxyKernelMihomo:
 		if a.clashMgr == nil {
-			result.Error = "mihomo 管理器不可用"
+			result.Error = "mihomo 管理器不可用，请先下载 Mihomo 内核"
+			result.LatencyMs = time.Since(startedAt).Milliseconds()
 			return result
 		}
 		socksURL, err = a.clashMgr.EnsureNodeBridge(src, proxies, proxyId)
-	} else if proxy.IsSingBoxProtocol(src) {
-		result.Engine = "sing-box"
+	case proxy.ProxyKernelSingBox:
 		if a.singboxMgr == nil {
 			result.Error = "sing-box 管理器不可用"
+			result.LatencyMs = time.Since(startedAt).Milliseconds()
 			return result
 		}
 		socksURL, err = a.singboxMgr.EnsureBridge(src, proxies, proxyId)
-	} else {
-		result.Engine = "xray"
+	case proxy.ProxyKernelXray:
 		if a.xrayMgr == nil {
 			result.Error = "xray 管理器不可用"
+			result.LatencyMs = time.Since(startedAt).Milliseconds()
 			return result
 		}
 		socksURL, err = a.xrayMgr.EnsureBridge(src, proxies, proxyId)
+	default:
+		result.Error = "无法选择代理内核"
+		result.LatencyMs = time.Since(startedAt).Milliseconds()
+		return result
 	}
 	result.LatencyMs = time.Since(startedAt).Milliseconds()
 	if err != nil {

@@ -1,5 +1,6 @@
 import { Button, FormItem, Input, Modal, Select, Table, Textarea } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
+import type { BrowserProxy } from '../types'
 import { DIRECT_QUICK_IMPORT_TEMPLATE } from '../pages/proxyPool/helpers'
 import {
   DIRECT_PROXY_PROTOCOL_OPTIONS,
@@ -17,6 +18,7 @@ interface ProxyImportModalViewProps {
   canParseImport: boolean
   importMode: ProxyImportMode
   importUrl: string
+  importFetchProxyId: string
   importResolvedUrl: string
   importText: string
   importDnsServers: string
@@ -26,6 +28,7 @@ interface ProxyImportModalViewProps {
   directImportForm: DirectImportForm
   chainImportForm: ChainImportForm
   groups: string[]
+  fetchProxyOptions: BrowserProxy[]
   previewModalOpen: boolean
   previewList: ProxyDisplayInfo[]
   importing: boolean
@@ -33,6 +36,7 @@ interface ProxyImportModalViewProps {
   onParseImport: () => void
   onImportModeChange: (mode: ProxyImportMode) => void
   onImportUrlChange: (value: string) => void
+  onImportFetchProxyIdChange: (value: string) => void
   onImportResolvedUrlChange: (value: string) => void
   onFetchImportURL: () => Promise<void>
   onImportTextChange: (value: string) => void
@@ -57,6 +61,7 @@ export function ProxyImportModalView({
   canParseImport,
   importMode,
   importUrl,
+  importFetchProxyId,
   importResolvedUrl,
   importText,
   importDnsServers,
@@ -66,6 +71,7 @@ export function ProxyImportModalView({
   directImportForm,
   chainImportForm,
   groups,
+  fetchProxyOptions,
   previewModalOpen,
   previewList,
   importing,
@@ -73,6 +79,7 @@ export function ProxyImportModalView({
   onParseImport,
   onImportModeChange,
   onImportUrlChange,
+  onImportFetchProxyIdChange,
   onImportResolvedUrlChange,
   onFetchImportURL,
   onImportTextChange,
@@ -124,17 +131,10 @@ export function ProxyImportModalView({
               链式代理
             </Button>
           </div>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {importMode === 'clash'
-              ? '支持粘贴 Clash YAML，或通过订阅 URL 自动拉取并解析（含 proxies、dns、proxy-groups）'
-              : importMode === 'direct'
-                ? '支持单条录入 HTTP / HTTPS / SOCKS5 代理，也支持 JSON 或多行标准代理文本批量导入，导入后直接生效，不走 Clash 桥接'
-                : '支持两层 SOCKS5 链式代理，导入后将由本地桥接生成 127.0.0.1 SOCKS5 供 Chromium 使用'}
-          </p>
           {importMode === 'clash' && (
             <>
               <FormItem label="订阅 URL（可选）">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_150px_auto] gap-2">
                   <Input
                     value={importUrl}
                     onChange={e => {
@@ -146,6 +146,18 @@ export function ProxyImportModalView({
                     }}
                     placeholder="订阅 URL"
                     className="flex-1"
+                  />
+                  <Select
+                    value={importFetchProxyId}
+                    onChange={e => onImportFetchProxyIdChange(e.target.value)}
+                    disabled={fetchingImportUrl}
+                    options={[
+                      { value: '', label: '直连拉取' },
+                      ...fetchProxyOptions.map(proxy => ({
+                        value: proxy.proxyId,
+                        label: proxy.proxyName || proxy.proxyId,
+                      })),
+                    ]}
                   />
                   <Button
                     variant="secondary"
@@ -161,7 +173,6 @@ export function ProxyImportModalView({
                     已绑定订阅：{importResolvedUrl}
                   </p>
                 )}
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">获取成功后会自动回填 YAML 文本，并尝试自动填充 DNS 与建议分组</p>
               </FormItem>
               <Textarea
                 value={importText}

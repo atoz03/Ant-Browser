@@ -42,11 +42,13 @@ func NewXrayManager(cfg *config.Config, appRoot string) *XrayManager {
 // 返回: supported bool, errorMsg string
 func ValidateProxyConfig(proxyConfig string, proxies []config.BrowserProxy, proxyId string) (bool, string) {
 	src := strings.TrimSpace(proxyConfig)
+	preferredKernel := ""
 	if proxyId != "" {
 		found := false
 		for _, item := range proxies {
 			if strings.EqualFold(item.ProxyId, proxyId) {
 				src = strings.TrimSpace(item.ProxyConfig)
+				preferredKernel = strings.TrimSpace(item.PreferredKernel)
 				found = true
 				break
 			}
@@ -56,6 +58,11 @@ func ValidateProxyConfig(proxyConfig string, proxies []config.BrowserProxy, prox
 				return false, fmt.Sprintf("代理链路不可用：代理池节点已不存在（proxyId=%s）。可能因订阅刷新后节点下线或被删除，请重新选择代理后再启动。", proxyId)
 			}
 		}
+	}
+	if resolution, err := ResolveProxyKernel(src, proxies, "", preferredKernel); err != nil {
+		return false, fmt.Sprintf("代理配置解析失败: %v", err)
+	} else if len(resolution.SupportedKernels) == 0 {
+		return false, "代理配置无效"
 	}
 	if src == "" {
 		return true, ""
@@ -75,6 +82,12 @@ func ValidateProxyConfig(proxyConfig string, proxies []config.BrowserProxy, prox
 	}
 	if IsSingBoxProtocol(src) {
 		if _, err := BuildSingBoxOutbound(src); err != nil {
+			return false, fmt.Sprintf("代理配置解析失败: %v", err)
+		}
+		return true, ""
+	}
+	if IsMihomoOnlyProtocol(src) {
+		if err := validateMihomoOnlyProtocol(src); err != nil {
 			return false, fmt.Sprintf("代理配置解析失败: %v", err)
 		}
 		return true, ""
@@ -106,6 +119,9 @@ func RequiresBridge(proxyConfig string, proxies []config.BrowserProxy, proxyId s
 		return true
 	}
 	if IsSingBoxProtocol(src) {
+		return false
+	}
+	if IsMihomoOnlyProtocol(src) {
 		return false
 	}
 	if strings.HasPrefix(l, "hysteria://") || strings.HasPrefix(l, "hysteria2://") {

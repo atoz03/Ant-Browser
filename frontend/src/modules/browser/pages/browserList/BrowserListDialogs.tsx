@@ -30,6 +30,21 @@ interface BrowserListDialogsProps {
   onConfirmCopy: () => void
   copyConfirmDisabled: boolean
   copying: boolean
+  deleteConfirm: { open: boolean; mode: 'single' | 'batch'; profileName?: string; count: number }
+  deleting: boolean
+  onCloseDeleteConfirm: () => void
+  onConfirmDelete: () => void
+  trashModalOpen: boolean
+  trashProfiles: BrowserProfile[]
+  trashLoading: boolean
+  restoringId: string
+  permanentlyDeletingId: string
+  permanentDeleteConfirm: { open: boolean; profile: BrowserProfile | null }
+  onCloseTrash: () => void
+  onRestoreProfile: (profileId: string) => void
+  onOpenPermanentDelete: (profile: BrowserProfile) => void
+  onClosePermanentDelete: () => void
+  onConfirmPermanentDelete: () => void
   opError: string
   onCloseOpError: () => void
 }
@@ -59,9 +74,38 @@ export function BrowserListDialogs({
   onConfirmCopy,
   copyConfirmDisabled,
   copying,
+  deleteConfirm,
+  deleting,
+  onCloseDeleteConfirm,
+  onConfirmDelete,
+  trashModalOpen,
+  trashProfiles,
+  trashLoading,
+  restoringId,
+  permanentlyDeletingId,
+  permanentDeleteConfirm,
+  onCloseTrash,
+  onRestoreProfile,
+  onOpenPermanentDelete,
+  onClosePermanentDelete,
+  onConfirmPermanentDelete,
   opError,
   onCloseOpError,
 }: BrowserListDialogsProps) {
+  const formatTime = (value?: string) => {
+    if (!value) return '-'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('zh-CN')
+  }
+
+  const formatExpireTime = (value?: string) => {
+    if (!value) return '-'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '-'
+    date.setDate(date.getDate() + 3)
+    return date.toLocaleString('zh-CN')
+  }
+
   return (
     <>
       <Modal
@@ -164,6 +208,101 @@ export function BrowserListDialogs({
           onCopyOptionsChange={onCopyOptionsChange}
           autoFocusName
         />
+      </Modal>
+
+      <Modal
+        open={deleteConfirm.open}
+        onClose={onCloseDeleteConfirm}
+        title="删除实例"
+        width="400px"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onCloseDeleteConfirm} disabled={deleting}>取消</Button>
+            <Button variant="danger" onClick={onConfirmDelete} loading={deleting}>确定删除</Button>
+          </>
+        }
+      >
+        <div className="text-sm text-[var(--color-text-secondary)]">
+          {deleteConfirm.mode === 'batch'
+            ? `确定将选中的 ${deleteConfirm.count} 个实例移入回收站？3 天内可恢复。`
+            : `确定将实例「${deleteConfirm.profileName || '未命名实例'}」移入回收站？3 天内可恢复。`}
+        </div>
+      </Modal>
+
+      <Modal
+        open={trashModalOpen}
+        onClose={onCloseTrash}
+        title="实例回收站"
+        width="720px"
+        footer={<Button variant="secondary" onClick={onCloseTrash}>关闭</Button>}
+      >
+        {trashLoading ? (
+          <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">加载中...</div>
+        ) : trashProfiles.length === 0 ? (
+          <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">回收站为空</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border-default)] text-left text-xs text-[var(--color-text-muted)]">
+                  <th className="py-2 pr-3 font-medium">实例</th>
+                  <th className="py-2 pr-3 font-medium">删除时间</th>
+                  <th className="py-2 pr-3 font-medium">自动清理</th>
+                  <th className="py-2 text-right font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trashProfiles.map((profile) => (
+                  <tr key={profile.profileId} className="border-b border-[var(--color-border-muted)] last:border-0">
+                    <td className="py-3 pr-3 text-[var(--color-text-primary)]">{profile.profileName || '未命名实例'}</td>
+                    <td className="py-3 pr-3 text-[var(--color-text-secondary)]">{formatTime(profile.deletedAt)}</td>
+                    <td className="py-3 pr-3 text-[var(--color-text-secondary)]">{formatExpireTime(profile.deletedAt)}</td>
+                    <td className="py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onRestoreProfile(profile.profileId)}
+                          loading={restoringId === profile.profileId}
+                          disabled={!!permanentlyDeletingId}
+                        >
+                          恢复
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => onOpenPermanentDelete(profile)}
+                          loading={permanentlyDeletingId === profile.profileId}
+                          disabled={!!restoringId}
+                        >
+                          彻底删除
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={permanentDeleteConfirm.open}
+        onClose={onClosePermanentDelete}
+        title="彻底删除实例"
+        width="420px"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClosePermanentDelete} disabled={!!permanentlyDeletingId}>取消</Button>
+            <Button variant="danger" onClick={onConfirmPermanentDelete} loading={!!permanentlyDeletingId}>彻底删除</Button>
+          </>
+        }
+      >
+        <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+          <p>确定彻底删除实例「{permanentDeleteConfirm.profile?.profileName || '未命名实例'}」？</p>
+          <p className="text-red-500">这会删除配置、浏览器用户数据、快照、快捷码和插件绑定，删除后不可恢复。</p>
+        </div>
       </Modal>
 
       <Modal

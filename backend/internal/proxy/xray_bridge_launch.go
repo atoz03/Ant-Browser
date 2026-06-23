@@ -129,6 +129,9 @@ func (m *XrayManager) ensureBridge(proxyConfig string, proxies []config.BrowserP
 			break
 		}
 	}
+	if !isRetryableXrayLaunchError(lastErr) {
+		return "", "", lastErr
+	}
 	return "", "", fmt.Errorf("xray 启动失败（已尝试 %d 次）: %w", attemptsUsed, lastErr)
 }
 
@@ -358,7 +361,7 @@ func (m *XrayManager) testRuntimeConfig(binaryPath string, cfgPath string, stder
 		_, _ = stderrFile.Write(output)
 	}
 	return &xrayLaunchError{
-		err:       fmt.Errorf("xray 配置预检失败: %w；%s", err, m.describeBridgeReadyError(err, cfgPath, stderrPath)),
+		err:       fmt.Errorf("Xray 配置错误：%s", m.describeBridgeReadyError(err, cfgPath, stderrPath)),
 		retryable: false,
 	}
 }
@@ -390,22 +393,57 @@ func (m *XrayManager) bridgeStartTimeout() time.Duration {
 	if m != nil && m.Config != nil && m.Config.ProxyCheck.BridgeStartTimeoutMs > 0 {
 		return time.Duration(m.Config.ProxyCheck.BridgeStartTimeoutMs) * time.Millisecond
 	}
-	return 15 * time.Second
+	return time.Duration(defaultBridgeStartTimeoutMs) * time.Millisecond
 }
 
 func (m *XrayManager) describeBridgeReadyError(err error, cfgPath string, stderrPath string) string {
-	parts := []string{err.Error()}
-	if strings.TrimSpace(cfgPath) != "" {
-		parts = append(parts, "配置文件: "+cfgPath)
-	}
 	if tail := readLogTail(stderrPath, 1200); tail != "" {
-		parts = append(parts, "stderr: "+tail)
+		return summarizeXrayError(tail)
 	} else if cfgPath != "" {
 		if tail := readLogTail(filepath.Join(filepath.Dir(cfgPath), "xray-error.log"), 1200); tail != "" {
-			parts = append(parts, "error.log: "+tail)
+			return summarizeXrayError(tail)
 		}
 	}
-	return strings.Join(parts, "；")
+	if err != nil {
+		return summarizeXrayError(err.Error())
+	}
+	return "未知错误"
+}
+
+func summarizeXrayError(raw string) string {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return "未知错误"
+	}
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			text = line
+			break
+		}
+	}
+	text = strings.TrimSpace(strings.TrimPrefix(text, "Failed to start:"))
+	if idx := strings.LastIndex(text, " > "); idx >= 0 && idx+3 < len(text) {
+		text = strings.TrimSpace(text[idx+3:])
+	}
+	text = strings.TrimPrefix(text, "infra/conf: ")
+	text = strings.TrimPrefix(text, "main: ")
+	if idx := strings.Index(text, "Try "); idx > 0 {
+		text = strings.TrimSpace(text[:idx])
+	}
+	if idx := strings.Index(text, "请检查"); idx > 0 {
+		text = strings.TrimSpace(text[:idx])
+	}
+	text = strings.Trim(text, " .；。")
+	if strings.Contains(text, "allowInsecure") && strings.Contains(strings.ToLower(text), "removed") {
+		return "字段 allowInsecure 已被当前 Xray 移除"
+	}
+	if text == "" {
+		return "未知错误"
+	}
+	return text
 }
 
 func readLogTail(path string, max int) string {

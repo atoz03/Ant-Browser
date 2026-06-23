@@ -14,7 +14,7 @@ const {
   pickBestAttempt,
 } = require('./news-query-utils.cjs')
 
-module.exports.run = async ({ launch, connect, selector, params, log, artifact }) => {
+module.exports.run = async ({ launch, connect, openPage, selector, params, log, artifact }) => {
   const timeout = normalizeInt(params.timeoutMs, 30000, 1000, 120000)
   const waitAfterLoadMs = normalizeInt(params.waitAfterLoadMs, 1500, 0, 10000)
   const limit = normalizeInt(params.limit, 10, 1, 50)
@@ -36,9 +36,12 @@ module.exports.run = async ({ launch, connect, selector, params, log, artifact }
   })
 
   const connection = await connect(session)
-  const browser = connection.browser
-  const context = connection.context || browser.contexts()[0]
-  const page = await context.newPage()
+  const opened = await openPage(connection, {
+    reuseCurrentPage: true,
+    bringToFront: true,
+    timeoutMs: timeout,
+  })
+  const page = opened.page
   const closeRunnerPage = async function () {
     if (!page.isClosed()) {
       await page.close().catch(function () {})

@@ -47,6 +47,8 @@ interface ProxyPoolTableCardProps {
   sortColumn: string
   sortOrder: SortOrder
   latencyMap: Record<string, number>
+  latencyEngineMap: Record<string, string>
+  latencyErrorMap: Record<string, string>
   warmingBridgeIds: Set<string>
   warmingAllBridges: boolean
 }
@@ -92,6 +94,8 @@ export function ProxyPoolTableCard({
   sortColumn,
   sortOrder,
   latencyMap,
+  latencyEngineMap,
+  latencyErrorMap,
   warmingBridgeIds,
   warmingAllBridges,
 }: ProxyPoolTableCardProps) {
@@ -104,11 +108,24 @@ export function ProxyPoolTableCard({
     const value = latencyMap[record.proxyId]
     if (value === undefined) return <span className="text-[var(--color-text-muted)] text-xs">-</span>
     if (value === -1) return <span className="text-[var(--color-text-muted)] text-xs animate-pulse">测试中...</span>
-    if (value === -2) return <span className="text-red-500 text-xs">超时</span>
-    if (value === -3) return <span className="text-gray-400 text-xs">不支持</span>
-    if (value === -4) return <span className="text-red-500 text-xs">失败</span>
+    const error = latencyErrorMap[record.proxyId] || ''
+    if (value === -2) return <span className="text-red-500 text-xs" title={error || '测速超时'}>超时</span>
+    if (value === -3) return <span className="text-gray-400 text-xs" title={error || '协议不支持'}>不支持</span>
+    if (value === -4) return <span className="text-red-500 text-xs" title={error || '测速失败'}>失败</span>
     const color = value < 200 ? 'text-green-500' : value < 500 ? 'text-yellow-500' : 'text-red-500'
     return <span className={`text-xs font-medium ${color}`}>{value} ms</span>
+  }
+
+  const renderLatencyEngine = (record: ProxyDisplayInfo) => {
+    if (record.proxyConfig === 'direct://') {
+      return <span className="text-[var(--color-text-muted)] text-xs">不适用</span>
+    }
+    const value = latencyMap[record.proxyId]
+    if (value === undefined) return <span className="text-[var(--color-text-muted)] text-xs">-</span>
+    if (value === -1) return <span className="text-[var(--color-text-muted)] text-xs animate-pulse">-</span>
+    return latencyEngineMap[record.proxyId]
+      ? <span className="text-xs text-[var(--color-text-secondary)] whitespace-nowrap">{latencyEngineMap[record.proxyId]}</span>
+      : <span className="text-[var(--color-text-muted)] text-xs">-</span>
   }
 
   const renderIPHealth = (record: ProxyDisplayInfo) => {
@@ -194,6 +211,12 @@ export function ProxyPoolTableCard({
       width: '90px',
       sortable: true,
       render: (_, record) => renderLatency(record),
+    },
+    {
+      key: 'latencyEngine',
+      title: '测速类型',
+      width: '90px',
+      render: (_, record) => renderLatencyEngine(record),
     },
     {
       key: 'ipHealth',
@@ -289,6 +312,7 @@ export function ProxyPoolTableCard({
     globalRefreshInterval,
     ipHealthMap,
     latencyMap,
+    latencyEngineMap,
     onCheckOneIPHealth,
     onDelete,
     onEdit,

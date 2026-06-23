@@ -53,6 +53,7 @@ func NormalizeBrowserProxies(proxies []config.BrowserProxy, generateID func() st
 			ProxyId:                proxyID,
 			ProxyName:              proxyName,
 			ProxyConfig:            proxyConfig,
+			PreferredKernel:        NormalizePreferredKernel(item.PreferredKernel),
 			DnsServers:             strings.TrimSpace(item.DnsServers),
 			GroupName:              strings.TrimSpace(item.GroupName),
 			SourceID:               sourceID,

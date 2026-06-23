@@ -172,11 +172,19 @@ export function BrowserProfileList():Promise<Array<browser.Profile>>;
 
 export function BrowserProfileListByTag(arg1:string):Promise<Array<browser.Profile>>;
 
+export function BrowserProfilePermanentlyDelete(arg1:string):Promise<void>;
+
 export function BrowserProfileRegenerateCode(arg1:string):Promise<string>;
+
+export function BrowserProfileRestore(arg1:string):Promise<browser.Profile>;
 
 export function BrowserProfileSetCode(arg1:string,arg2:string):Promise<string>;
 
 export function BrowserProfileSetKeywords(arg1:string,arg2:Array<string>):Promise<browser.Profile>;
+
+export function BrowserProfileTrashCleanup():Promise<void>;
+
+export function BrowserProfileTrashList():Promise<Array<browser.Profile>>;
 
 export function BrowserProfileUpdate(arg1:string,arg2:browser.ProfileInput):Promise<browser.Profile>;
 
@@ -199,6 +207,8 @@ export function BrowserProxyCoreOpenLocal(arg1:backend.ProxyCoreDownloadRequest)
 export function BrowserProxyCoreStatus(arg1:backend.ProxyCoreDownloadRequest):Promise<backend.ProxyCoreStatusResult>;
 
 export function BrowserProxyFetchClashByURL(arg1:string):Promise<Record<string, any>>;
+
+export function BrowserProxyFetchClashByURLWithProxy(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function BrowserProxyList():Promise<Array<config.BrowserProxy>>;
 

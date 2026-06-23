@@ -22,29 +22,26 @@ type browserStartInput struct {
 }
 
 type browserStartPlan struct {
-	profile               *BrowserProfile
-	chromeBinaryPath      string
-	userDataDir           string
-	args                  []string
-	extensionDirs         []string
-	deferredStartTargets  []string
-	effectiveProxy        string
-	acquiredXrayBridgeKey string
-	releaseXrayBridge     bool
-	assignedDebugPort     int
-	startReadyTimeout     time.Duration
-	startStableWindow     time.Duration
-	maxStartAttempts      int
-	totalReadyTimeout     time.Duration
+	profile              *BrowserProfile
+	chromeBinaryPath     string
+	userDataDir          string
+	args                 []string
+	extensionDirs        []string
+	deferredStartTargets []string
+	effectiveProxy       string
+	acquiredProxyBridge  profileProxyBridgeRef
+	releaseProxyBridge   bool
+	assignedDebugPort    int
+	startReadyTimeout    time.Duration
+	startStableWindow    time.Duration
+	maxStartAttempts     int
+	totalReadyTimeout    time.Duration
 }
 
 var clearBrowserSessionRestoreData = browser.ClearSessionRestoreData
 
 func newBrowserStartInput(profileID string, extraLaunchArgs []string, startURLs []string, skipDefaultStartURLs bool, preferVisibleWindow bool, forceDirectProxy bool, proxyID string, proxyConfig string) browserStartInput {
 	normalizedExtraLaunchArgs := normalizeNonEmptyStrings(extraLaunchArgs)
-	if preferVisibleWindow {
-		normalizedExtraLaunchArgs = ensureNewWindowLaunchArg(normalizedExtraLaunchArgs)
-	}
 
 	return browserStartInput{
 		ProfileID:            profileID,
@@ -66,8 +63,8 @@ func (plan *browserStartPlan) releaseBridgeIfNeeded(a *App) {
 	if plan == nil || a == nil {
 		return
 	}
-	if plan.releaseXrayBridge && plan.acquiredXrayBridgeKey != "" && a.xrayMgr != nil {
-		a.xrayMgr.ReleaseBridge(plan.acquiredXrayBridgeKey)
+	if plan.releaseProxyBridge {
+		a.releaseProxyBridgeRef(plan.acquiredProxyBridge)
 	}
 }
 
@@ -96,18 +93,24 @@ func (a *App) resolveBrowserStartProfile(input browserStartInput) (*BrowserProfi
 		return profile, false, nil
 	}
 
-	if input.PreferVisibleWindow {
-		if err := a.openBrowserWindowForRunningProfile(profile, input.ExtraLaunchArgs, input.StartURLs); err != nil {
-			startErr := fmt.Errorf("实例已在运行，但窗口唤起失败：%w", err)
-			log.Error("运行中实例窗口唤起失败",
-				logger.F("profile_id", input.ProfileID),
-				logger.F("debug_port", profile.DebugPort),
-				logger.F("error", err.Error()),
-				logger.F("reason", startErr.Error()),
-			)
-			profile.LastError = startErr.Error()
-			return profile, true, startErr
+	if len(normalizeNonEmptyStrings(input.StartURLs)) == 0 && len(normalizeNonEmptyStrings(input.ExtraLaunchArgs)) == 0 {
+		if a.launchServer != nil && profile.DebugReady {
+			a.launchServer.SetActiveProfile(profile)
 		}
+		a.emitBrowserInstanceStarted(profile, true)
+		return profile, true, nil
+	}
+
+	if err := a.openBrowserTabForRunningProfile(profile, input.ExtraLaunchArgs, input.StartURLs); err != nil {
+		startErr := fmt.Errorf("实例已在运行，但新标签打开失败：%w", err)
+		log.Error("运行中实例新标签打开失败",
+			logger.F("profile_id", input.ProfileID),
+			logger.F("debug_port", profile.DebugPort),
+			logger.F("error", err.Error()),
+			logger.F("reason", startErr.Error()),
+		)
+		profile.LastError = startErr.Error()
+		return profile, true, startErr
 	}
 
 	if a.launchServer != nil && profile.DebugReady {
@@ -124,7 +127,7 @@ func (a *App) prepareBrowserStartPlan(input browserStartInput, profile *BrowserP
 		return nil, err
 	}
 
-	effectiveProxy, acquiredXrayBridgeKey, releaseXrayBridge, err := a.resolveBrowserStartProxy(input, profile)
+	effectiveProxy, acquiredProxyBridge, releaseProxyBridge, err := a.resolveBrowserStartProxy(input, profile)
 	if err != nil {
 		return nil, err
 	}
@@ -156,20 +159,20 @@ func (a *App) prepareBrowserStartPlan(input browserStartInput, profile *BrowserP
 	}
 
 	return &browserStartPlan{
-		profile:               profile,
-		chromeBinaryPath:      chromeBinaryPath,
-		userDataDir:           userDataDir,
-		extensionDirs:         extensionDirs,
-		args:                  buildBrowserLaunchArgs(profile, userDataDir, assignedDebugPort, effectiveProxy, extensionDirs, sanitizedProfileLaunchArgs, sanitizedExtraLaunchArgs, launchTargets),
-		deferredStartTargets:  deferredStartTargets,
-		effectiveProxy:        effectiveProxy,
-		acquiredXrayBridgeKey: acquiredXrayBridgeKey,
-		releaseXrayBridge:     releaseXrayBridge,
-		assignedDebugPort:     assignedDebugPort,
-		startReadyTimeout:     startReadyTimeout,
-		startStableWindow:     startStableWindow,
-		maxStartAttempts:      maxStartAttempts,
-		totalReadyTimeout:     totalReadyTimeout,
+		profile:              profile,
+		chromeBinaryPath:     chromeBinaryPath,
+		userDataDir:          userDataDir,
+		extensionDirs:        extensionDirs,
+		args:                 buildBrowserLaunchArgs(profile, userDataDir, assignedDebugPort, effectiveProxy, extensionDirs, sanitizedProfileLaunchArgs, sanitizedExtraLaunchArgs, launchTargets),
+		deferredStartTargets: deferredStartTargets,
+		effectiveProxy:       effectiveProxy,
+		acquiredProxyBridge:  acquiredProxyBridge,
+		releaseProxyBridge:   releaseProxyBridge,
+		assignedDebugPort:    assignedDebugPort,
+		startReadyTimeout:    startReadyTimeout,
+		startStableWindow:    startStableWindow,
+		maxStartAttempts:     maxStartAttempts,
+		totalReadyTimeout:    totalReadyTimeout,
 	}, nil
 }
 
@@ -223,12 +226,13 @@ func (a *App) prepareBrowserLaunchContext(input browserStartInput, profile *Brow
 			logger.F("pid", detection.PID),
 			logger.F("debug_port", detection.DebugPort),
 		)
-		if input.PreferVisibleWindow {
-			if err := a.openBrowserWindowForRunningProfile(profile, input.ExtraLaunchArgs, input.StartURLs); err != nil {
-				startErr := fmt.Errorf("实例已在运行，但窗口唤起失败：%w", err)
-				profile.LastError = startErr.Error()
-				return nil, nil, "", "", startErr
-			}
+		if len(normalizeNonEmptyStrings(input.StartURLs)) == 0 && len(normalizeNonEmptyStrings(input.ExtraLaunchArgs)) == 0 {
+			return nil, nil, "", "", errBrowserStartHandledByRecoveredRuntime
+		}
+		if err := a.openBrowserTabForRunningProfile(profile, input.ExtraLaunchArgs, input.StartURLs); err != nil {
+			startErr := fmt.Errorf("实例已在运行，但新标签打开失败：%w", err)
+			profile.LastError = startErr.Error()
+			return nil, nil, "", "", startErr
 		}
 		return nil, nil, "", "", errBrowserStartHandledByRecoveredRuntime
 	}

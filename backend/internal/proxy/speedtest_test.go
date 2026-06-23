@@ -1,11 +1,16 @@
 package proxy
 
 import (
+	"bufio"
 	"encoding/base64"
+	"fmt"
+	"net"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	"github.com/metacubex/mihomo/component/resolver"
+	"ant-chrome/backend/internal/config"
 )
 
 func TestProxyConfigToMappingStandardProxy(t *testing.T) {
@@ -30,17 +35,6 @@ func TestProxyConfigToMappingStandardProxy(t *testing.T) {
 	}
 	if got := mapping["password"]; got != "pass" {
 		t.Fatalf("password = %v, want pass", got)
-	}
-}
-
-func TestEnableMihomoIPv6(t *testing.T) {
-	resolver.DisableIPv6 = true
-	t.Cleanup(func() { resolver.DisableIPv6 = true })
-
-	enableMihomoIPv6()
-
-	if resolver.DisableIPv6 {
-		t.Fatal("expected mihomo IPv6 resolver to be enabled")
 	}
 }
 
@@ -148,5 +142,183 @@ func TestDefaultProxyCheckURLsAreConfigured(t *testing.T) {
 	}
 	if strings.TrimSpace(DefaultIPHealthURL) == "" {
 		t.Fatalf("DefaultIPHealthURL must not be empty")
+	}
+}
+
+func TestDefaultSpeedTestTimeoutsAreShort(t *testing.T) {
+	t.Parallel()
+
+	if DefaultSpeedTestConfig.Timeout != 3*time.Second {
+		t.Fatalf("speed timeout = %s, want 3s", DefaultSpeedTestConfig.Timeout)
+	}
+	if DefaultSpeedTestConfig.TCPTimeout != 3*time.Second {
+		t.Fatalf("speed tcp timeout = %s, want 3s", DefaultSpeedTestConfig.TCPTimeout)
+	}
+}
+
+func TestSpeedTestDefaultsToXrayLightHTTPDelay(t *testing.T) {
+	var requests atomic.Int32
+	const responseDelay = 120 * time.Millisecond
+	proxyURL, closeProxy := startDelayedConnectProxy(t, responseDelay, &requests)
+	t.Cleanup(closeProxy)
+
+	proxyID := "delayed-http-proxy"
+	result := SpeedTest(
+		proxyID,
+		[]config.BrowserProxy{{ProxyId: proxyID, ProxyConfig: proxyURL}},
+		nil,
+		nil,
+		&SpeedTestConfig{Timeout: 2 * time.Second, URLs: []string{"http://latency.test/generate_204"}},
+	)
+	if !result.Ok {
+		t.Fatalf("SpeedTest failed: %+v", result)
+	}
+	if requests.Load() == 0 {
+		t.Fatal("test proxy did not receive any speed-test request")
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("requests = %d, want unified delay to perform two HEAD requests", requests.Load())
+	}
+	if result.Engine != "native" {
+		t.Fatalf("engine = %q, want native", result.Engine)
+	}
+	if result.LatencyMs <= 0 || result.LatencyMs >= int64(responseDelay/time.Millisecond) {
+		t.Fatalf("latency = %dms, want second unified-delay probe below first-connection delay", result.LatencyMs)
+	}
+}
+
+func TestSpeedTestFallsBackAcrossTargets(t *testing.T) {
+	var requests atomic.Int32
+	proxyURL, closeProxy := startDelayedConnectProxy(t, 10*time.Millisecond, &requests)
+	t.Cleanup(closeProxy)
+
+	proxyID := "fallback-http-proxy"
+	result := SpeedTestWithConnector(
+		proxyID,
+		[]config.BrowserProxy{{ProxyId: proxyID, ProxyConfig: proxyURL}},
+		nil,
+		nil,
+		nil,
+		config.BrowserConnectorXray,
+		&SpeedTestConfig{Timeout: 2 * time.Second, URLs: []string{"http://latency.test/fail", "http://latency.test/generate_204"}},
+	)
+	if !result.Ok {
+		t.Fatalf("SpeedTestWithConnector should fallback to second target: %+v", result)
+	}
+	if requests.Load() != 4 {
+		t.Fatalf("requests = %d, want fallback to perform unified-delay HEAD pair per target", requests.Load())
+	}
+}
+
+func TestSpeedTestTargetsDoNotIncludeRealConnectivityFallbacks(t *testing.T) {
+	t.Parallel()
+
+	targets := speedTestTargetURLs(&SpeedTestConfig{})
+	if len(targets) != 1 {
+		t.Fatalf("targets = %#v, want only default speed test URL", targets)
+	}
+	if targets[0] != DefaultSpeedTestURL {
+		t.Fatalf("target = %q, want %q", targets[0], DefaultSpeedTestURL)
+	}
+	for _, target := range targets {
+		if strings.Contains(target, "cloudflare") || strings.Contains(target, "msftconnecttest") {
+			t.Fatalf("speed test target unexpectedly includes real-connectivity URL: %#v", targets)
+		}
+	}
+}
+
+func TestSpeedTestUsesSingBoxProtocolWhenXrayConnectorSelected(t *testing.T) {
+	proxyID := "hy2-proxy"
+	result := SpeedTestWithConnector(
+		proxyID,
+		[]config.BrowserProxy{{ProxyId: proxyID, ProxyConfig: "hysteria2://pass@example.com:443?sni=example.com"}},
+		nil,
+		nil,
+		nil,
+		config.BrowserConnectorXray,
+		&SpeedTestConfig{Timeout: 10 * time.Millisecond, URLs: []string{"http://latency.test/generate_204"}},
+	)
+	if result.Ok {
+		t.Fatalf("speed test should fail without sing-box manager, got success: %+v", result)
+	}
+	if result.Engine != "sing-box" {
+		t.Fatalf("engine = %q, want sing-box; result=%+v", result.Engine, result)
+	}
+	if !strings.Contains(result.Error, "sing-box 管理器未初始化") {
+		t.Fatalf("error = %q, want sing-box manager guidance", result.Error)
+	}
+}
+
+func startDelayedConnectProxy(t *testing.T, delay time.Duration, requests *atomic.Int32) (string, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen failed: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go handleDelayedConnectProxyConn(conn, delay, requests)
+		}
+	}()
+	return "http://" + listener.Addr().String(), func() {
+		_ = listener.Close()
+		<-done
+	}
+}
+
+func handleDelayedConnectProxyConn(conn net.Conn, delay time.Duration, requests *atomic.Int32) {
+	defer conn.Close()
+	reader := bufio.NewReader(conn)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return
+	}
+	for {
+		header, err := reader.ReadString('\n')
+		if err != nil || strings.TrimSpace(header) == "" {
+			break
+		}
+	}
+	if strings.HasPrefix(line, "CONNECT ") {
+		_, _ = fmt.Fprint(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
+		line, err = reader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		for {
+			header, err := reader.ReadString('\n')
+			if err != nil || strings.TrimSpace(header) == "" {
+				break
+			}
+		}
+	}
+	for strings.HasPrefix(line, "HEAD ") {
+		requestCount := requests.Add(1)
+		if requestCount == 1 {
+			time.Sleep(delay)
+		} else {
+			time.Sleep(10 * time.Millisecond)
+		}
+		statusLine := "HTTP/1.1 204 No Content"
+		if strings.Contains(line, "/fail") {
+			statusLine = "HTTP/1.1 500 Internal Server Error"
+		}
+		_, _ = fmt.Fprintf(conn, "%s\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n", statusLine)
+		line, err = reader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		for {
+			header, err := reader.ReadString('\n')
+			if err != nil || strings.TrimSpace(header) == "" {
+				break
+			}
+		}
 	}
 }

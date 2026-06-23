@@ -11,6 +11,7 @@ import {
 export interface ProxyEditFormValue {
   proxyName: string
   proxyConfig: string
+  preferredKernel: string
   dnsServers: string
   groupName: string
 }
@@ -162,6 +163,18 @@ export function ProxyPoolEditModal({
             ))}
           </datalist>
         </FormItem>
+        <FormItem label="代理内核">
+          <Select
+            value={editForm.preferredKernel || 'auto'}
+            onChange={(event) => onChange({ preferredKernel: event.target.value })}
+            options={[
+              { value: 'auto', label: '自动' },
+              { value: 'xray', label: 'Xray' },
+              { value: 'sing-box', label: 'sing-box' },
+              { value: 'mihomo', label: 'Mihomo' },
+            ]}
+          />
+        </FormItem>
         {chainEditMode ? (
           <div className="space-y-4">
             <FormItem label="本地监听端口（可选）">
@@ -278,9 +291,6 @@ export function ProxyPoolEditModal({
             rows={6}
             placeholder={`dns:\n  enable: true\n  nameserver:\n    - 119.29.29.29\n    - 223.5.5.5`}
           />
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">
-            支持 Clash dns: YAML 格式，主要用于 Clash / 桥接代理；直连 HTTP/SOCKS5 通常不会使用这里的 DNS 配置
-          </p>
         </FormItem>
       </div>
     </Modal>

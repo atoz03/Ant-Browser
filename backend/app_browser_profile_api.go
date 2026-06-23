@@ -47,6 +47,22 @@ func (a *App) BrowserProfileUpdate(profileId string, input BrowserProfileInput) 
 
 func (a *App) BrowserProfileDelete(profileId string) error { return a.browserMgr.Delete(profileId) }
 
+// BrowserProfileTrashList 获取回收站实例列表
+func (a *App) BrowserProfileTrashList() []BrowserProfile { return a.browserMgr.ListDeleted() }
+
+// BrowserProfileRestore 从回收站恢复实例
+func (a *App) BrowserProfileRestore(profileId string) (*BrowserProfile, error) {
+	return a.browserMgr.Restore(profileId)
+}
+
+// BrowserProfilePermanentlyDelete 从回收站彻底删除实例
+func (a *App) BrowserProfilePermanentlyDelete(profileId string) error {
+	return a.browserMgr.PermanentlyDelete(profileId)
+}
+
+// BrowserProfileTrashCleanup 清理超过保留期的回收站实例
+func (a *App) BrowserProfileTrashCleanup() error { return a.browserMgr.CleanupExpiredTrash() }
+
 // BrowserProfileCopy 复制实例配置（除指纹参数外全部复制）
 func (a *App) BrowserProfileCopy(profileId string, newName string) (*BrowserProfile, error) {
 	return a.browserMgr.Copy(profileId, newName)

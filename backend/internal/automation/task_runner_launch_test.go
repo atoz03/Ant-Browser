@@ -108,6 +108,219 @@ func TestRunScriptTaskLaunchPassesTemporaryProxyParams(t *testing.T) {
 	}
 }
 
+func TestRunScriptTaskLaunchSkipsDefaultStartUrlsByDefault(t *testing.T) {
+	nodeExecPath := lookupNodeExecutable(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Automation.Enabled = true
+	cfg.Automation.NodeSource = config.AutomationNodeSourceSystem
+	cfg.Automation.SystemNodePath = nodeExecPath
+	cfg.Automation.NodeVersion = "test-node"
+	cfg.Automation.PlaywrightCoreVersion = "1.59.0"
+	cfg.Automation.RuntimeVersion = "test-runtime"
+
+	manager := NewManager(t.TempDir(), cfg, nil, Options{})
+	state := manager.CurrentState()
+	if err := writeRunnerScript(state.RunnerPath); err != nil {
+		t.Fatalf("write runner script failed: %v", err)
+	}
+	if err := writeMockPlaywrightModule(state.RuntimeDir, cfg.Automation.PlaywrightCoreVersion); err != nil {
+		t.Fatalf("write mock playwright module failed: %v", err)
+	}
+
+	type launchRequestPayload struct {
+		SkipDefaultStartURLs *bool `json:"skipDefaultStartUrls"`
+	}
+	receivedBody := launchRequestPayload{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/launch" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&receivedBody); err != nil {
+			t.Fatalf("decode launch request body failed: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":        true,
+			"profileId": "profile-script",
+			"debugPort": 9333,
+			"cdpUrl":    "http://127.0.0.1:9333",
+		})
+	}))
+	defer server.Close()
+
+	scriptDir := filepath.Join(state.RuntimeDir, "tmp", "scripts")
+	if err := os.MkdirAll(scriptDir, 0o755); err != nil {
+		t.Fatalf("create script dir failed: %v", err)
+	}
+	scriptPath := filepath.Join(scriptDir, "script-launch-default-skip.cjs")
+	scriptSource := `module.exports.run = async ({ launch, selector }) => {
+  await launch({ selector })
+  return { ok: true, summary: '脚本执行成功' }
+}`
+	if err := os.WriteFile(scriptPath, []byte(scriptSource), 0o644); err != nil {
+		t.Fatalf("write script failed: %v", err)
+	}
+
+	result, err := manager.RunScriptTask(context.Background(), ScriptTaskRequest{
+		TaskKey:       "script:launch-default-skip",
+		ScriptPath:    scriptPath,
+		Selector:      map[string]any{"code": "DEMO_READY"},
+		LaunchBaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("RunScriptTask returned error: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("expected script task to succeed, got %+v", result)
+	}
+	if receivedBody.SkipDefaultStartURLs == nil || *receivedBody.SkipDefaultStartURLs != true {
+		t.Fatalf("expected skipDefaultStartUrls default true, got %+v", receivedBody)
+	}
+}
+
+func TestRunScriptTaskUseBrowserWithoutURLDoesNotCreateBlankPage(t *testing.T) {
+	nodeExecPath := lookupNodeExecutable(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Automation.Enabled = true
+	cfg.Automation.NodeSource = config.AutomationNodeSourceSystem
+	cfg.Automation.SystemNodePath = nodeExecPath
+	cfg.Automation.NodeVersion = "test-node"
+	cfg.Automation.PlaywrightCoreVersion = "1.59.0"
+	cfg.Automation.RuntimeVersion = "test-runtime"
+
+	manager := NewManager(t.TempDir(), cfg, nil, Options{})
+	state := manager.CurrentState()
+	if err := writeRunnerScript(state.RunnerPath); err != nil {
+		t.Fatalf("write runner script failed: %v", err)
+	}
+
+	markerPath := filepath.Join(t.TempDir(), "new-page-count.txt")
+	if err := writeMockPlaywrightModuleCountingNewPages(state.RuntimeDir, cfg.Automation.PlaywrightCoreVersion, markerPath); err != nil {
+		t.Fatalf("write mock playwright module failed: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":        true,
+			"profileId": "profile-script-no-blank",
+			"debugPort": 9333,
+			"cdpUrl":    "http://127.0.0.1:9333",
+		})
+	}))
+	defer server.Close()
+
+	scriptDir := filepath.Join(state.RuntimeDir, "tmp", "scripts")
+	if err := os.MkdirAll(scriptDir, 0o755); err != nil {
+		t.Fatalf("create script dir failed: %v", err)
+	}
+	scriptPath := filepath.Join(scriptDir, "script-no-blank.cjs")
+	scriptSource := `module.exports.run = async ({ useBrowser, selector }) => {
+  const runtime = await useBrowser({ selector })
+  return { ok: true, summary: runtime.page ? runtime.page.url() : 'no-page' }
+}`
+	if err := os.WriteFile(scriptPath, []byte(scriptSource), 0o644); err != nil {
+		t.Fatalf("write script failed: %v", err)
+	}
+
+	result, err := manager.RunScriptTask(context.Background(), ScriptTaskRequest{
+		TaskKey:       "script:no-blank",
+		ScriptPath:    scriptPath,
+		Selector:      map[string]any{"code": "DEMO_READY"},
+		LaunchBaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("RunScriptTask returned error: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("expected script task to succeed, got %+v", result)
+	}
+	if result.Summary != "no-page" {
+		t.Fatalf("summary = %q, want no-page", result.Summary)
+	}
+	if _, err := os.Stat(markerPath); !os.IsNotExist(err) {
+		if err != nil {
+			t.Fatalf("stat marker failed: %v", err)
+		}
+		data, _ := os.ReadFile(markerPath)
+		t.Fatalf("context.newPage should not be called, marker=%q", string(data))
+	}
+}
+
+func TestRunScriptTaskOpenPageWithoutURLDoesNotCreateBlankPage(t *testing.T) {
+	nodeExecPath := lookupNodeExecutable(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Automation.Enabled = true
+	cfg.Automation.NodeSource = config.AutomationNodeSourceSystem
+	cfg.Automation.SystemNodePath = nodeExecPath
+	cfg.Automation.NodeVersion = "test-node"
+	cfg.Automation.PlaywrightCoreVersion = "1.59.0"
+	cfg.Automation.RuntimeVersion = "test-runtime"
+
+	manager := NewManager(t.TempDir(), cfg, nil, Options{})
+	state := manager.CurrentState()
+	if err := writeRunnerScript(state.RunnerPath); err != nil {
+		t.Fatalf("write runner script failed: %v", err)
+	}
+
+	markerPath := filepath.Join(t.TempDir(), "new-page-count.txt")
+	if err := writeMockPlaywrightModuleCountingNewPages(state.RuntimeDir, cfg.Automation.PlaywrightCoreVersion, markerPath); err != nil {
+		t.Fatalf("write mock playwright module failed: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":        true,
+			"profileId": "profile-script-open-no-url",
+			"debugPort": 9333,
+			"cdpUrl":    "http://127.0.0.1:9333",
+		})
+	}))
+	defer server.Close()
+
+	scriptDir := filepath.Join(state.RuntimeDir, "tmp", "scripts")
+	if err := os.MkdirAll(scriptDir, 0o755); err != nil {
+		t.Fatalf("create script dir failed: %v", err)
+	}
+	scriptPath := filepath.Join(scriptDir, "script-open-page-no-url.cjs")
+	scriptSource := `module.exports.run = async ({ launch, connect, openPage, selector }) => {
+  const session = await launch({ selector })
+  const connection = await connect(session)
+  const opened = await openPage(connection, { reuseCurrentPage: true })
+  return { ok: true, summary: opened.page ? opened.page.url() : 'no-page' }
+}`
+	if err := os.WriteFile(scriptPath, []byte(scriptSource), 0o644); err != nil {
+		t.Fatalf("write script failed: %v", err)
+	}
+
+	result, err := manager.RunScriptTask(context.Background(), ScriptTaskRequest{
+		TaskKey:       "script:open-page-no-url",
+		ScriptPath:    scriptPath,
+		Selector:      map[string]any{"code": "DEMO_READY"},
+		LaunchBaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("RunScriptTask returned error: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("expected script task to succeed, got %+v", result)
+	}
+	if result.Summary != "no-page" {
+		t.Fatalf("summary = %q, want no-page", result.Summary)
+	}
+	if _, err := os.Stat(markerPath); !os.IsNotExist(err) {
+		if err != nil {
+			t.Fatalf("stat marker failed: %v", err)
+		}
+		data, _ := os.ReadFile(markerPath)
+		t.Fatalf("context.newPage should not be called, marker=%q", string(data))
+	}
+}
+
 func TestRunScriptTaskFallsBackToLaunchBaseURLWhenSessionEndpointIsInvalid(t *testing.T) {
 	nodeExecPath := lookupNodeExecutable(t)
 

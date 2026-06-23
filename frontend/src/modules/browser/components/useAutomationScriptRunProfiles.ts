@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "../../../shared/components";
 import { fetchBrowserProfiles, fetchGroups } from "../api";
 import type { AutomationScriptRecord } from "../automationScripts";
@@ -29,7 +29,6 @@ interface UseAutomationScriptRunProfilesOptions {
   usesStoredTargetConfig: boolean;
   selectorText: string;
   setSelectorText: (value: string) => void;
-  demoSession: AutomationDemoSession;
   setDemoSession: Dispatch<SetStateAction<AutomationDemoSession>>;
   reloadDemoSession: () => AutomationDemoSession;
 }
@@ -41,7 +40,6 @@ export function useAutomationScriptRunProfiles({
   usesStoredTargetConfig,
   selectorText,
   setSelectorText,
-  demoSession,
   setDemoSession,
   reloadDemoSession,
 }: UseAutomationScriptRunProfilesOptions) {
@@ -57,6 +55,8 @@ export function useAutomationScriptRunProfiles({
   const [createDraft, setCreateDraft] = useState<DemoCreateDraft>(
     DEFAULT_DEMO_CREATE_DRAFT,
   );
+  const lastRefreshKeyRef = useRef("");
+  const activeRefreshKeyRef = useRef("");
   const selectedProfile =
     availableProfiles.find((profile) => profile.profileId === selectedProfileId) ||
     null;
@@ -216,31 +216,42 @@ export function useAutomationScriptRunProfiles({
     if (!open || !script) {
       setAvailableProfiles([]);
       setSelectedProfileId("");
+      lastRefreshKeyRef.current = "";
+      activeRefreshKeyRef.current = "";
       return;
     }
 
     const nextDemoSession = reloadDemoSession();
     const nextSelectorText = resolveInitialSelectorText(script, nextDemoSession);
-    void refreshSelectableProfiles(
-      script.targetConfig.selector.profileId || nextDemoSession.profileId,
-      resolveSelectorLaunchCode(nextSelectorText) || nextDemoSession.launchCode,
-      false,
-    );
-  }, [open, script, usesStoredTargetConfig]);
+    const preferredProfileId =
+      script.targetConfig.selector.profileId || nextDemoSession.profileId;
+    const preferredLaunchCode =
+      resolveSelectorLaunchCode(nextSelectorText) || nextDemoSession.launchCode;
+    const refreshKey = [
+      script.id,
+      usesStoredTargetConfig ? "stored" : "runtime",
+      preferredProfileId,
+      preferredLaunchCode,
+    ].join("|");
 
-  useEffect(() => {
-    if (!open || !script || script.type !== "playwright-cdp") {
-      return;
-    }
-    if (usesStoredTargetConfig) {
-      return;
-    }
-    if (demoMode !== "select") {
+    if (
+      lastRefreshKeyRef.current === refreshKey ||
+      activeRefreshKeyRef.current === refreshKey
+    ) {
       return;
     }
 
-    void refreshSelectableProfiles("", demoSession.launchCode, false);
-  }, [demoMode, demoSession.launchCode, open, script, usesStoredTargetConfig]);
+    activeRefreshKeyRef.current = refreshKey;
+    void refreshSelectableProfiles(preferredProfileId, preferredLaunchCode, false)
+      .then(() => {
+        lastRefreshKeyRef.current = refreshKey;
+      })
+      .finally(() => {
+        if (activeRefreshKeyRef.current === refreshKey) {
+          activeRefreshKeyRef.current = "";
+        }
+      });
+  }, [open, script?.id, usesStoredTargetConfig]);
 
   const handleSelectedProfileChange = (profileId: string) => {
     setSelectedProfileId(profileId);

@@ -73,3 +73,13 @@ func TestNormalizeBrowserProxiesKeepsExistingBuiltin(t *testing.T) {
 		t.Fatalf("len = %d, want 1", len(proxies))
 	}
 }
+
+func TestNormalizeBrowserProxiesKeepsPreferredKernel(t *testing.T) {
+	proxies := NormalizeBrowserProxies([]config.BrowserProxy{
+		{ProxyId: "p1", ProxyName: "main", ProxyConfig: "http://127.0.0.1:8080", PreferredKernel: " singbox "},
+	}, nil)
+
+	if proxies[1].PreferredKernel != ProxyKernelSingBox {
+		t.Fatalf("preferred kernel = %q, want sing-box", proxies[1].PreferredKernel)
+	}
+}

@@ -122,30 +122,30 @@ func TestResolveBrowserStartProxyUsesTemporaryProxyWithoutMutatingProfile(t *tes
 	}
 	input := newBrowserStartInput(profile.ProfileId, nil, nil, false, false, false, "runtime-proxy", "")
 
-	effectiveProxy, bridgeKey, releaseBridge, err := app.resolveBrowserStartProxy(input, profile)
+	effectiveProxy, bridgeRef, releaseBridge, err := app.resolveBrowserStartProxy(input, profile)
 	if err != nil {
 		t.Fatalf("resolveBrowserStartProxy returned error: %v", err)
 	}
 	if effectiveProxy != "http://127.0.0.1:28080" {
 		t.Fatalf("expected temporary proxy, got %q", effectiveProxy)
 	}
-	if bridgeKey != "" || releaseBridge {
-		t.Fatalf("plain HTTP proxy should not acquire bridge: key=%q release=%v", bridgeKey, releaseBridge)
+	if bridgeRef.valid() || releaseBridge {
+		t.Fatalf("plain HTTP proxy should not acquire bridge: ref=%+v release=%v", bridgeRef, releaseBridge)
 	}
 	if profile.ProxyId != "stored-proxy" || profile.ProxyConfig != "http://127.0.0.1:18080" {
 		t.Fatalf("temporary proxy should not mutate profile: %+v", profile)
 	}
 
 	fallbackInput := newBrowserStartInput(profile.ProfileId, nil, nil, false, false, false, "missing-proxy", "http://127.0.0.1:38080")
-	effectiveProxy, bridgeKey, releaseBridge, err = app.resolveBrowserStartProxy(fallbackInput, profile)
+	effectiveProxy, bridgeRef, releaseBridge, err = app.resolveBrowserStartProxy(fallbackInput, profile)
 	if err != nil {
 		t.Fatalf("fallback temporary proxy returned error: %v", err)
 	}
 	if effectiveProxy != "http://127.0.0.1:38080" {
 		t.Fatalf("expected fallback temporary proxy config, got %q", effectiveProxy)
 	}
-	if bridgeKey != "" || releaseBridge {
-		t.Fatalf("fallback HTTP proxy should not acquire bridge: key=%q release=%v", bridgeKey, releaseBridge)
+	if bridgeRef.valid() || releaseBridge {
+		t.Fatalf("fallback HTTP proxy should not acquire bridge: ref=%+v release=%v", bridgeRef, releaseBridge)
 	}
 	if profile.ProxyId != "stored-proxy" || profile.ProxyConfig != "http://127.0.0.1:18080" {
 		t.Fatalf("fallback temporary proxy should not mutate profile: %+v", profile)

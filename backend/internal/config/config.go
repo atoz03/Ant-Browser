@@ -175,6 +175,7 @@ type BrowserProxy struct {
 	ProxyId                string `yaml:"proxy_id" json:"proxyId"`
 	ProxyName              string `yaml:"proxy_name" json:"proxyName"`
 	ProxyConfig            string `yaml:"proxy_config" json:"proxyConfig"`
+	PreferredKernel        string `yaml:"preferred_kernel,omitempty" json:"preferredKernel,omitempty"`
 	DnsServers             string `yaml:"dns_servers,omitempty" json:"dnsServers,omitempty"`
 	GroupName              string `yaml:"group_name,omitempty" json:"groupName,omitempty"`
 	SortOrder              int    `yaml:"sort_order,omitempty" json:"sortOrder,omitempty"`

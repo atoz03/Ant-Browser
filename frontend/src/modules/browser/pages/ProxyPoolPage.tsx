@@ -38,8 +38,6 @@ export function ProxyPoolPage() {
   const [displayList, setDisplayList] = useState<ProxyDisplayInfo[]>([])
   const [loading, setLoading] = useState(true)
   const {
-    browserSettings,
-    connectorSwitching,
     coreDownloadOpen,
     coreDownloadType,
     setCoreDownloadType,
@@ -54,7 +52,6 @@ export function ProxyPoolPage() {
     downloadCoreStatus,
     downloadCoreStatusLoading,
     loadBrowserSettings,
-    handleSwitchConnector,
     handleStartCoreDownload,
     openCoreDownload,
     closeCoreDownload,
@@ -95,6 +92,7 @@ export function ProxyPoolPage() {
   const [editForm, setEditForm] = useState<ProxyEditFormValue>({
     proxyName: '',
     proxyConfig: '',
+    preferredKernel: 'auto',
     dnsServers: '',
     groupName: '',
   })
@@ -108,11 +106,11 @@ export function ProxyPoolPage() {
   }, [])
 
   const {
-    importModalOpen, setImportModalOpen, importMode, importUrl, importResolvedUrl, importText,
+    importModalOpen, setImportModalOpen, importMode, importUrl, importFetchProxyId, importResolvedUrl, importText,
     importDnsServers, importNamePrefix, importGroupName, chainImportText, directImportText,
     chainImportForm, directImportForm, previewModalOpen, setPreviewModalOpen, previewList, removedPreviewProxyNames,
     importing, fetchingImportUrl, canParseImport, setImportText, setImportDnsServers,
-    setImportNamePrefix, setImportGroupName, setChainImportText, setDirectImportText,
+    setImportNamePrefix, setImportGroupName, setImportFetchProxyId, setChainImportText, setDirectImportText,
     setChainImportForm, setDirectImportForm, handleRemovePreviewProxy, updateChainImportHop,
     handleImportModeChange, handleFillChainTemplate, handleFillDirectTemplate, handleCopyChainTemplate,
     handleCopyDirectTemplate, handleApplyChainJSON, handleApplyDirectText, handleImportUrlChange,
@@ -139,6 +137,8 @@ export function ProxyPoolPage() {
 
   const {
     latencyMap,
+    latencyEngineMap,
+    latencyErrorMap,
     testingAll,
     ipHealthMap,
     checkingIPHealthIds,
@@ -149,6 +149,7 @@ export function ProxyPoolPage() {
     setIPHealthDetailOpen,
     currentIPHealthDetail,
     setLatencyMap,
+    setLatencyEngineMap,
     setIPHealthMap,
     handleTestOne,
     handleTestAll,
@@ -180,6 +181,15 @@ export function ProxyPoolPage() {
         return next
       })
 
+      setLatencyEngineMap(prev => {
+        const validIds = new Set(finalList.map(p => p.proxyId))
+        const next: Record<string, string> = {}
+        Object.entries(prev).forEach(([proxyId, engine]) => {
+          if (validIds.has(proxyId)) next[proxyId] = engine
+        })
+        return next
+      })
+
       setIPHealthMap(prev => {
         const validIds = new Set(finalList.map(p => p.proxyId))
         const next: Record<string, ProxyIPHealthResult> = {}
@@ -193,7 +203,7 @@ export function ProxyPoolPage() {
     } finally {
       setLoading(false)
     }
-  }, [setIPHealthMap, setLatencyMap])
+  }, [setIPHealthMap, setLatencyEngineMap, setLatencyMap])
 
   useEffect(() => {
     void loadProxies()
@@ -239,7 +249,13 @@ export function ProxyPoolPage() {
     const proxy = proxies.find(p => p.proxyId === record.proxyId)
     if (proxy) {
       setEditingProxy(proxy)
-      setEditForm({ proxyName: proxy.proxyName, proxyConfig: proxy.proxyConfig, dnsServers: proxy.dnsServers || '', groupName: proxy.groupName || '' })
+      setEditForm({
+        proxyName: proxy.proxyName,
+        proxyConfig: proxy.proxyConfig,
+        preferredKernel: proxy.preferredKernel || 'auto',
+        dnsServers: proxy.dnsServers || '',
+        groupName: proxy.groupName || '',
+      })
       const nextChainForm = toChainImportForm(proxy.proxyName, proxy.proxyConfig)
       if (nextChainForm) {
         setChainEditMode(true)
@@ -279,6 +295,7 @@ export function ProxyPoolPage() {
             ...p,
             proxyName: nextProxyName,
             proxyConfig: nextProxyConfig,
+            preferredKernel: editForm.preferredKernel === 'auto' ? undefined : editForm.preferredKernel,
             dnsServers: editForm.dnsServers.trim() || undefined,
             groupName: editForm.groupName.trim() || undefined,
           }
@@ -303,13 +320,10 @@ export function ProxyPoolPage() {
     <div className="space-y-5 animate-fade-in">
       <ProxyPoolHeader
         checkingAllIPHealth={checkingAllIPHealth}
-        connectorSwitching={connectorSwitching}
         currentConnectorStatus={currentCoreStatus?.message || '未知'}
-        currentConnectorType={browserSettings?.defaultConnectorType || 'xray'}
         hasURLImportSources={hasURLImportSources}
         onCheckAllIPHealth={() => void handleCheckAllIPHealth(filteredList)}
         onOpenSettings={() => void openCheckSettings()}
-        onSwitchConnector={() => void handleSwitchConnector()}
         onOpenImport={() => setImportModalOpen(true)}
         onOpenCoreDownload={openCoreDownload}
         onRefreshAllSources={() => void handleRefreshAllSources(false)}
@@ -333,6 +347,8 @@ export function ProxyPoolPage() {
         groups={groups}
         ipHealthMap={ipHealthMap}
         latencyMap={latencyMap}
+        latencyEngineMap={latencyEngineMap}
+        latencyErrorMap={latencyErrorMap}
         loading={loading}
         onCheckOneIPHealth={(record) => void handleCheckOneIPHealth(record)}
         onClearFilters={() => {
@@ -377,6 +393,7 @@ export function ProxyPoolPage() {
         groups={groups}
         importMode={importMode}
         importUrl={importUrl}
+        importFetchProxyId={importFetchProxyId}
         importResolvedUrl={importResolvedUrl}
         importText={importText}
         importDnsServers={importDnsServers}
@@ -387,12 +404,14 @@ export function ProxyPoolPage() {
         chainImportForm={chainImportForm}
         directImportForm={directImportForm}
         fetchingImportUrl={fetchingImportUrl}
+        fetchProxyOptions={proxies.filter(proxy => proxy.proxyConfig.trim() && !proxy.proxyConfig.trim().toLowerCase().startsWith('direct://'))}
         canParseImport={canParseImport}
         onClose={() => setImportModalOpen(false)}
         onParse={handleParseImport}
         onFetchImportUrl={handleFetchImportURL}
         onImportModeChange={handleImportModeChange}
         onImportUrlChange={handleImportUrlChange}
+        onImportFetchProxyIdChange={setImportFetchProxyId}
         onImportTextChange={setImportText}
         onImportDnsServersChange={setImportDnsServers}
         onImportNamePrefixChange={setImportNamePrefix}

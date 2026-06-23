@@ -10,10 +10,20 @@ import (
 var defaultBrowserStartURLs = []string{}
 
 const (
-	BrowserConnectorXray   = "xray"
+	// BrowserConnectorXray 是历史 default_connector_type 的默认值。
+	// 新代理运行入口不再依赖全局连接栈，而是按单个代理自动解析 xray/sing-box/mihomo。
+	BrowserConnectorXray = "xray"
+	// BrowserConnectorMihomo 仅保留用于兼容旧配置、旧 API 和历史数据。
 	BrowserConnectorMihomo = "mihomo"
 )
 
+const (
+	BrowserConnectorXrayStack   = BrowserConnectorXray
+	BrowserConnectorMihomoStack = BrowserConnectorMihomo
+)
+
+// NormalizeBrowserConnectorType 只用于兼容历史 default_connector_type 输入。
+// 新代理执行入口应使用 proxy.ResolveProxyKernel 按单个代理选择内核。
 func NormalizeBrowserConnectorType(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case BrowserConnectorMihomo, "clash", "clash-meta":

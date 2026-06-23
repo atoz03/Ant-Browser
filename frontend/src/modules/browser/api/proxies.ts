@@ -1,4 +1,4 @@
-﻿import type { BrowserProxy, ProxyBridgeWarmupResult, ProxyCoreDownloadInfoResult, ProxyCoreStatusResult, ProxyIPHealthResult, ProxyLocationResolveResult } from '../types'
+﻿import type { BrowserProxy, ProxyBridgeWarmupResult, ProxyCoreDownloadInfoResult, ProxyCoreStatusResult, ProxyIPHealthResult, ProxyLocationResolveResult, ProxySpeedTestResult } from '../types'
 import { getBindings, getGoApp, getMockProxies, nowISOString, setMockProxies } from './runtime'
 
 export interface ClashImportURLResult {
@@ -37,8 +37,18 @@ export async function fetchBrowserProxiesByGroup(groupName: string): Promise<Bro
   return getMockProxies().filter((proxy) => proxy.groupName === groupName)
 }
 
-export async function fetchClashImportFromURL(targetURL: string): Promise<ClashImportURLResult> {
+export async function fetchClashImportFromURL(targetURL: string, proxyId = ''): Promise<ClashImportURLResult> {
   const bindings: any = await getBindings()
+  const trimmedProxyId = proxyId.trim()
+  if (trimmedProxyId && bindings?.BrowserProxyFetchClashByURLWithProxy) {
+    return (
+      (await bindings.BrowserProxyFetchClashByURLWithProxy(targetURL, trimmedProxyId)) || {
+        url: targetURL,
+        content: '',
+        proxyCount: 0,
+      }
+    )
+  }
   if (bindings?.BrowserProxyFetchClashByURL) {
     return (
       (await bindings.BrowserProxyFetchClashByURL(targetURL)) || {
@@ -50,6 +60,15 @@ export async function fetchClashImportFromURL(targetURL: string): Promise<ClashI
   }
 
   const goApp = getGoApp()
+  if (trimmedProxyId && goApp?.BrowserProxyFetchClashByURLWithProxy) {
+    return (
+      (await goApp.BrowserProxyFetchClashByURLWithProxy(targetURL, trimmedProxyId)) || {
+        url: targetURL,
+        content: '',
+        proxyCount: 0,
+      }
+    )
+  }
   if (goApp?.BrowserProxyFetchClashByURL) {
     return (
       (await goApp.BrowserProxyFetchClashByURL(targetURL)) || {
@@ -81,40 +100,40 @@ export async function validateProxyConfig(proxyConfig: string, proxyId: string):
   return { supported: true, errorMsg: '' }
 }
 
-export async function testProxyConnectivity(proxyId: string, proxyConfig: string): Promise<{ proxyId: string; ok: boolean; latencyMs: number; error: string }> {
+export async function testProxyConnectivity(proxyId: string, proxyConfig: string): Promise<ProxySpeedTestResult> {
   const bindings: any = await getBindings()
   if (bindings?.TestProxyConnectivity) {
-    return (await bindings.TestProxyConnectivity(proxyId, proxyConfig)) || { proxyId, ok: false, latencyMs: 0, error: '调用失败' }
+    return (await bindings.TestProxyConnectivity(proxyId, proxyConfig)) || { proxyId, ok: false, latencyMs: 0, engine: 'unknown', error: '调用失败' }
   }
   await sleep(300 + Math.random() * 500)
-  return { proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 200), error: '' }
+  return { proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 200), engine: 'mock', error: '' }
 }
 
-export async function testProxyRealConnectivity(proxyId: string): Promise<{ proxyId: string; ok: boolean; latencyMs: number; error: string }> {
+export async function testProxyRealConnectivity(proxyId: string): Promise<ProxySpeedTestResult> {
   const bindings: any = await getBindings()
   if (bindings?.TestProxyRealConnectivity) {
-    return (await bindings.TestProxyRealConnectivity(proxyId)) || { proxyId, ok: false, latencyMs: 0, error: '调用失败' }
+    return (await bindings.TestProxyRealConnectivity(proxyId)) || { proxyId, ok: false, latencyMs: 0, engine: 'unknown', error: '调用失败' }
   }
   await sleep(300 + Math.random() * 500)
-  return { proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 400), error: '' }
+  return { proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 400), engine: 'mock', error: '' }
 }
 
-export async function browserProxyTestSpeed(proxyId: string): Promise<{ proxyId: string; ok: boolean; latencyMs: number; error: string }> {
+export async function browserProxyTestSpeed(proxyId: string): Promise<ProxySpeedTestResult> {
   const bindings: any = await getBindings()
   if (bindings?.BrowserProxyTestSpeed) {
-    return (await bindings.BrowserProxyTestSpeed(proxyId)) || { proxyId, ok: false, latencyMs: 0, error: '调用失败' }
+    return (await bindings.BrowserProxyTestSpeed(proxyId)) || { proxyId, ok: false, latencyMs: 0, engine: 'unknown', error: '调用失败' }
   }
   await sleep(300 + Math.random() * 500)
-  return { proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 400), error: '' }
+  return { proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 400), engine: 'mock', error: '' }
 }
 
-export async function browserProxyBatchTestSpeed(proxyIds: string[], concurrency: number = 20): Promise<{ proxyId: string; ok: boolean; latencyMs: number; error: string }[]> {
+export async function browserProxyBatchTestSpeed(proxyIds: string[], concurrency: number = 20): Promise<ProxySpeedTestResult[]> {
   const bindings: any = await getBindings()
   if (bindings?.BrowserProxyBatchTestSpeed) {
     return (await bindings.BrowserProxyBatchTestSpeed(proxyIds, concurrency)) || []
   }
   await sleep(1000)
-  return proxyIds.map((proxyId) => ({ proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 400), error: '' }))
+  return proxyIds.map((proxyId) => ({ proxyId, ok: true, latencyMs: Math.floor(100 + Math.random() * 400), engine: 'mock', error: '' }))
 }
 
 export async function browserProxyWarmupBridge(proxyId: string): Promise<ProxyBridgeWarmupResult> {

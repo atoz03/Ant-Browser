@@ -26,6 +26,7 @@ interface BrowserListHeaderProps {
   onRefresh: () => void
   onOpenSettings: () => void
   onOpenExpandModal: () => void
+  onOpenTrash: () => void
   onViewModeChange: (next: BrowserViewMode) => void
 }
 
@@ -45,6 +46,7 @@ export function BrowserListHeader({
   onRefresh,
   onOpenSettings,
   onOpenExpandModal,
+  onOpenTrash,
   onViewModeChange,
 }: BrowserListHeaderProps) {
   return (
@@ -69,6 +71,9 @@ export function BrowserListHeader({
           </Button>
           <Button variant="secondary" size="sm" onClick={onOpenSettings}>
             <Sliders className="w-4 h-4" />基础配置
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onOpenTrash}>
+            <Trash2 className="w-4 h-4" />回收站
           </Button>
           <Button
             variant="secondary"

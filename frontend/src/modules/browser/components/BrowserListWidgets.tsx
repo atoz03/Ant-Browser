@@ -131,6 +131,15 @@ export function KeywordInlineRow({ keywords }: KeywordInlineRowProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
 
+  const handleCopyKeyword = async (keyword: string) => {
+    try {
+      await navigator.clipboard.writeText(keyword)
+      toast.success('关键字已复制')
+    } catch {
+      toast.error('复制失败')
+    }
+  }
+
   useEffect(() => {
     if (containerRef.current) {
       setIsOverflowing(containerRef.current.scrollHeight > 36)
@@ -148,14 +157,16 @@ export function KeywordInlineRow({ keywords }: KeywordInlineRowProps) {
         className={`flex flex-wrap gap-2 flex-1 transition-all duration-300 ${expanded ? '' : 'overflow-hidden max-h-[32px]'}`}
       >
         {keywords.map((keyword, index) => (
-          <span
+          <button
+            type="button"
             key={index}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-[var(--color-bg-surface)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] max-w-[200px]"
-            title={keyword}
+            className="inline-flex max-w-[200px] items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+            title={`点击复制：${keyword}`}
+            onClick={() => { void handleCopyKeyword(keyword) }}
           >
             <span className="text-[var(--color-text-muted)] font-mono shrink-0">{index + 1}.</span>
             <span className="truncate">{keyword}</span>
-          </span>
+          </button>
         ))}
       </div>
       {isOverflowing && (

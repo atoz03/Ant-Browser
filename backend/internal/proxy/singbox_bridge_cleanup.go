@@ -29,6 +29,9 @@ func (m *SingBoxManager) recycleIdleBridges() {
 			delete(m.Bridges, key)
 			continue
 		}
+		if bridge.RefCount > 0 {
+			continue
+		}
 		if now.Sub(bridge.LastUsedAt) < singBoxBridgeIdleTTL {
 			continue
 		}

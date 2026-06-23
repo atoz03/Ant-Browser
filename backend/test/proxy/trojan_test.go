@@ -33,19 +33,21 @@ func TestTrojanClashYAML(t *testing.T) {
 		t.Errorf("protocol 期望 trojan，得到 %v", outbound["protocol"])
 	}
 	settings := outbound["settings"].(map[string]interface{})
-	if settings["address"] != "trojan.example.com" {
-		t.Errorf("address 不匹配: %v", settings["address"])
+	servers := settings["servers"].([]interface{})
+	server := servers[0].(map[string]interface{})
+	if server["address"] != "trojan.example.com" {
+		t.Errorf("address 不匹配: %v", server["address"])
 	}
-	if settings["password"] != "example-password" {
-		t.Errorf("password 不匹配: %v", settings["password"])
+	if server["password"] != "example-password" {
+		t.Errorf("password 不匹配: %v", server["password"])
 	}
 	stream := outbound["streamSettings"].(map[string]interface{})
 	if stream["security"] != "tls" {
 		t.Errorf("security 期望 tls，得到 %v", stream["security"])
 	}
 	tls := stream["tlsSettings"].(map[string]interface{})
-	if tls["allowInsecure"] != true {
-		t.Errorf("allowInsecure 期望 true，得到 %v", tls["allowInsecure"])
+	if _, ok := tls["allowInsecure"]; ok {
+		t.Errorf("tlsSettings 不应包含已废弃的 allowInsecure: %#v", tls)
 	}
 }
 
@@ -59,11 +61,53 @@ func TestTrojanURI(t *testing.T) {
 		t.Errorf("protocol 期望 trojan，得到 %v", outbound["protocol"])
 	}
 	settings := outbound["settings"].(map[string]interface{})
-	if settings["address"] != "example.com" {
-		t.Errorf("address 不匹配: %v", settings["address"])
+	servers := settings["servers"].([]interface{})
+	server := servers[0].(map[string]interface{})
+	if server["address"] != "example.com" {
+		t.Errorf("address 不匹配: %v", server["address"])
 	}
-	if settings["password"] != "mypassword" {
-		t.Errorf("password 不匹配: %v", settings["password"])
+	if server["password"] != "mypassword" {
+		t.Errorf("password 不匹配: %v", server["password"])
+	}
+	stream := outbound["streamSettings"].(map[string]interface{})
+	tls := stream["tlsSettings"].(map[string]interface{})
+	if _, ok := tls["allowInsecure"]; ok {
+		t.Errorf("tlsSettings 不应包含已废弃的 allowInsecure: %#v", tls)
+	}
+	if tls["_antInsecureSkipVerify"] != true {
+		t.Errorf("_antInsecureSkipVerify 期望 true，得到 %v", tls["_antInsecureSkipVerify"])
+	}
+}
+
+func TestTrojanURIKeepsFingerprintAlias(t *testing.T) {
+	node := "trojan://mypassword@example.com:443?sni=example.com&fp=chrome"
+	_, outbound, err := proxy.ParseProxyNode(node)
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	stream := outbound["streamSettings"].(map[string]interface{})
+	tls := stream["tlsSettings"].(map[string]interface{})
+	if tls["fingerprint"] != "chrome" {
+		t.Fatalf("fingerprint = %v, want chrome", tls["fingerprint"])
+	}
+}
+
+func TestVlessURIKeepsFingerprintAlias(t *testing.T) {
+	node := "vless://00000000-0000-0000-0000-000000000001@example.com:443?type=tcp&security=tls&flow=xtls-rprx-vision&fp=chrome&sni=d1.awsstatic.com&insecure=1"
+	_, outbound, err := proxy.ParseProxyNode(node)
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	stream := outbound["streamSettings"].(map[string]interface{})
+	tls := stream["tlsSettings"].(map[string]interface{})
+	if tls["serverName"] != "d1.awsstatic.com" {
+		t.Fatalf("serverName = %v, want d1.awsstatic.com", tls["serverName"])
+	}
+	if tls["fingerprint"] != "chrome" {
+		t.Fatalf("fingerprint = %v, want chrome", tls["fingerprint"])
+	}
+	if tls["_antInsecureSkipVerify"] != true {
+		t.Fatalf("_antInsecureSkipVerify = %v, want true", tls["_antInsecureSkipVerify"])
 	}
 }
 
@@ -174,6 +218,24 @@ func TestHysteria2URI(t *testing.T) {
 	tls := outbound["tls"].(map[string]interface{})
 	if tls["insecure"] != true {
 		t.Errorf("insecure 期望 true，得到 %v", tls["insecure"])
+	}
+}
+
+func TestHysteria2URIWithPortHopUsesServerPorts(t *testing.T) {
+	node := "hysteria2://mypassword@example.com:20000?sni=example.com&insecure=1&mport=20000-50000"
+	outbound, err := proxy.BuildSingBoxOutbound(node)
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	serverPorts, ok := outbound["server_ports"].(string)
+	if !ok {
+		t.Fatalf("server_ports is %T, want string", outbound["server_ports"])
+	}
+	if serverPorts != "20000:50000" {
+		t.Fatalf("server_ports = %#v, want 20000:50000", serverPorts)
+	}
+	if _, ok := outbound["server_port"]; ok {
+		t.Fatalf("server_port should be omitted when mport is set: %#v", outbound)
 	}
 }
 

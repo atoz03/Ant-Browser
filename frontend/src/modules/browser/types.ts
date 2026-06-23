@@ -1,4 +1,4 @@
-export interface BrowserProfile {
+﻿export interface BrowserProfile {
   profileId: string
   profileName: string
   userDataDir: string
@@ -22,6 +22,7 @@ export interface BrowserProfile {
   lastError: string
   createdAt: string
   updatedAt: string
+  deletedAt?: string
   lastStartAt?: string
   lastStopAt?: string
   launchCode?: string
@@ -74,6 +75,7 @@ export interface BrowserSettings {
   restoreLastSession: boolean
   startReadyTimeoutMs: number
   startStableWindowMs: number
+  // xray 表示 Xray + sing-box 组合连接栈；mihomo 表示独立 Mihomo 连接栈。
   defaultConnectorType: 'xray' | 'mihomo' | string
 }
 
@@ -117,6 +119,7 @@ export interface BrowserProxy {
   proxyId: string
   proxyName: string
   proxyConfig: string
+  preferredKernel?: 'auto' | 'xray' | 'sing-box' | 'mihomo' | string
   dnsServers?: string
   groupName?: string
   sourceId?: string
@@ -190,6 +193,14 @@ export interface ProxyBridgeWarmupResult {
   engine: string
   socksUrl: string
   latencyMs: number
+  error: string
+}
+
+export interface ProxySpeedTestResult {
+  proxyId: string
+  ok: boolean
+  latencyMs: number
+  engine?: string
   error: string
 }
 

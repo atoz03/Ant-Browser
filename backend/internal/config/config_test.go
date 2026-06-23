@@ -161,6 +161,14 @@ func TestNormalizeBrowserConnectorTypeAliases(t *testing.T) {
 	}
 }
 
+func TestSingBoxAliasStaysInsideXrayConnectorStack(t *testing.T) {
+	t.Parallel()
+
+	if got := NormalizeBrowserConnectorType("sing-box"); got != BrowserConnectorXrayStack {
+		t.Fatalf("sing-box alias = %q, want xray connector stack", got)
+	}
+}
+
 func TestLoadClearsLegacyVerificationStartURLs(t *testing.T) {
 	t.Parallel()
 

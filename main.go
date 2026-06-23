@@ -199,7 +199,13 @@ func main() {
 	go func() {
 		for range singleInstance.activation {
 			if wailsCtx == nil {
-				continue
+				select {
+				case <-startupReached:
+				case <-time.After(12 * time.Second):
+				}
+				if wailsCtx == nil {
+					continue
+				}
 			}
 			runtime.WindowShow(wailsCtx)
 			runtime.WindowUnminimise(wailsCtx)

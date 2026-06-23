@@ -63,7 +63,6 @@ func buildOutboundFromClashVless(node map[string]interface{}) (map[string]interf
 		if sni != "" {
 			tlsSettings["serverName"] = sni
 		}
-		tlsSettings["allowInsecure"] = getMapBool(node, "skip-cert-verify")
 		applyClashTLSClientOptions(node, tlsSettings)
 		stream["security"] = "tls"
 		stream["tlsSettings"] = tlsSettings
@@ -122,7 +121,6 @@ func buildOutboundFromClashVmess(node map[string]interface{}) (map[string]interf
 		if sni != "" {
 			tlsSettings["serverName"] = sni
 		}
-		tlsSettings["allowInsecure"] = getMapBool(node, "skip-cert-verify")
 		applyClashTLSClientOptions(node, tlsSettings)
 		stream["security"] = "tls"
 		stream["tlsSettings"] = tlsSettings

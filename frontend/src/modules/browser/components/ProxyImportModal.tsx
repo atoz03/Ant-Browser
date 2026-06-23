@@ -19,7 +19,7 @@ import {
   buildDirectImportCandidate,
   buildImportCandidatesFromClash,
   buildImportPreview,
-  createExistingProxyIDPicker,
+  createExistingProxyPicker,
   parseClashImportText,
   nextProxyID,
   normalizeRefreshIntervalM,
@@ -38,6 +38,7 @@ export function ProxyImportModal({
 }: ProxyImportModalProps) {
   const [importMode, setImportMode] = useState<ProxyImportMode>('clash')
   const [importUrl, setImportUrl] = useState('')
+  const [importFetchProxyId, setImportFetchProxyId] = useState('')
   const [importResolvedUrl, setImportResolvedUrl] = useState('')
   const [importText, setImportText] = useState('')
   const [importDnsServers, setImportDnsServers] = useState('')
@@ -59,6 +60,7 @@ export function ProxyImportModal({
   const resetImportState = () => {
     setImportMode('clash')
     setImportUrl('')
+    setImportFetchProxyId('')
     setImportResolvedUrl('')
     setImportText('')
     setImportDnsServers('')
@@ -75,6 +77,7 @@ export function ProxyImportModal({
     setImportResolvedUrl('')
     if (nextMode !== 'clash') {
       setImportUrl('')
+      setImportFetchProxyId('')
       setImportDnsServers('')
     }
   }
@@ -98,7 +101,7 @@ export function ProxyImportModal({
 
     setFetchingImportUrl(true)
     try {
-      const result = await fetchClashImportFromURL(targetURL)
+      const result = await fetchClashImportFromURL(targetURL, importFetchProxyId)
       const content = (result?.content || '').trim()
       if (!content) {
         throw new Error('订阅内容为空')
@@ -204,12 +207,15 @@ export function ProxyImportModal({
       const oldSourceProxies = isURLImport
         ? existingProxies.filter(item => (item.sourceId || '').trim() === sourceID)
         : []
-      const pickExistingID = createExistingProxyIDPicker(oldSourceProxies)
+      const pickExisting = createExistingProxyPicker(oldSourceProxies)
 
-      const newProxies: BrowserProxy[] = previewList.map((p) => ({
-        proxyId: pickExistingID(p.proxyName, p.proxyConfig) || nextProxyID(),
+      const newProxies: BrowserProxy[] = previewList.map((p) => {
+        const existingProxy = pickExisting(p.proxyName, p.proxyConfig)
+        return {
+        proxyId: existingProxy?.proxyId || nextProxyID(),
         proxyName: p.proxyName,
         proxyConfig: p.proxyConfig,
+        preferredKernel: existingProxy?.preferredKernel || undefined,
         dnsServers: importMode === 'clash' ? importDnsServers.trim() || undefined : undefined,
         groupName: p.groupName.trim() || undefined,
         sourceId: sourceID || undefined,
@@ -218,7 +224,8 @@ export function ProxyImportModal({
         sourceAutoRefresh,
         sourceRefreshIntervalM,
         sourceLastRefreshAt: sourceLastRefreshAt || undefined,
-      }))
+        }
+      })
       const allProxies = isURLImport
         ? existingProxies.filter(item => (item.sourceId || '').trim() !== sourceID).concat(newProxies)
         : [...existingProxies, ...newProxies]
@@ -278,6 +285,7 @@ export function ProxyImportModal({
       canParseImport={canParseImport}
       importMode={importMode}
       importUrl={importUrl}
+      importFetchProxyId={importFetchProxyId}
       importResolvedUrl={importResolvedUrl}
       importText={importText}
       importDnsServers={importDnsServers}
@@ -287,6 +295,7 @@ export function ProxyImportModal({
       directImportForm={directImportForm}
       chainImportForm={chainImportForm}
       groups={groups}
+      fetchProxyOptions={existingProxies.filter(proxy => proxy.proxyConfig.trim() && !proxy.proxyConfig.trim().toLowerCase().startsWith('direct://'))}
       previewModalOpen={previewModalOpen}
       previewList={previewList}
       importing={importing}
@@ -294,6 +303,7 @@ export function ProxyImportModal({
       onParseImport={handleParseImport}
       onImportModeChange={handleImportModeChange}
       onImportUrlChange={setImportUrl}
+      onImportFetchProxyIdChange={setImportFetchProxyId}
       onImportResolvedUrlChange={setImportResolvedUrl}
       onFetchImportURL={handleFetchImportURL}
       onImportTextChange={setImportText}

@@ -29,6 +29,12 @@ ws-opts:
 	}
 	stream := outbound["streamSettings"].(map[string]interface{})
 	tlsSettings := stream["tlsSettings"].(map[string]interface{})
+	if _, ok := tlsSettings["allowInsecure"]; ok {
+		t.Fatalf("tlsSettings must not include deprecated allowInsecure: %#v", tlsSettings)
+	}
+	if tlsSettings[xrayTLSInsecurePinKey] != true {
+		t.Fatalf("tlsSettings missing insecure pin marker: %#v", tlsSettings)
+	}
 	if tlsSettings["fingerprint"] != "chrome" {
 		t.Fatalf("fingerprint = %v, want chrome", tlsSettings["fingerprint"])
 	}
@@ -40,6 +46,31 @@ ws-opts:
 	headers := ws["headers"].(map[string]interface{})
 	if headers["Host"] != "cdn.example.com" || headers["User-Agent"] != "ant" {
 		t.Fatalf("headers = %#v", headers)
+	}
+}
+
+func TestClashTrojanSkipCertVerifyUsesXrayPinMarker(t *testing.T) {
+	src := `
+name: trojan
+type: trojan
+server: edge.example.com
+port: 443
+password: pass
+sni: sni.example.com
+skip-cert-verify: true
+`
+
+	_, outbound, err := ParseProxyNode(src)
+	if err != nil {
+		t.Fatalf("ParseProxyNode returned error: %v", err)
+	}
+	stream := outbound["streamSettings"].(map[string]interface{})
+	tlsSettings := stream["tlsSettings"].(map[string]interface{})
+	if _, ok := tlsSettings["allowInsecure"]; ok {
+		t.Fatalf("tlsSettings must not include deprecated allowInsecure: %#v", tlsSettings)
+	}
+	if tlsSettings[xrayTLSInsecurePinKey] != true {
+		t.Fatalf("tlsSettings missing insecure pin marker: %#v", tlsSettings)
 	}
 }
 
@@ -206,6 +237,7 @@ func TestSingBoxHysteria2ClashKeepsTLSFingerprintAndCongestion(t *testing.T) {
 type: hysteria2
 server: hy.example.com
 port: 443
+ports: 20000-50000, 51000-52000
 password: test-password
 sni: sni.example.com
 alpn:
@@ -220,6 +252,13 @@ congestion-control: bbr
 	}
 	if out["congestion_control"] != "bbr" {
 		t.Fatalf("congestion_control = %v, want bbr", out["congestion_control"])
+	}
+	serverPorts, ok := out["server_ports"].(string)
+	if !ok {
+		t.Fatalf("server_ports is %T, want string", out["server_ports"])
+	}
+	if serverPorts != "20000:50000,51000:52000" {
+		t.Fatalf("server_ports = %#v, want converted ranges", serverPorts)
 	}
 	tls := out["tls"].(map[string]interface{})
 	alpn := tls["alpn"].([]string)

@@ -1,11 +1,9 @@
 package proxy
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -25,12 +23,12 @@ func TestConnectivity(proxyId string, proxyConfig string, proxies []config.Brows
 		}
 	}
 	if src == "" {
-		return TestResult{ProxyId: proxyId, Ok: false, Error: "代理配置为空"}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "tcp", Error: "代理配置为空"}
 	}
 
 	endpoint, err := proxyEndpoint(src)
 	if err != nil {
-		return TestResult{ProxyId: proxyId, Ok: false, Error: fmt.Sprintf("地址解析失败: %v", err)}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "tcp", Error: fmt.Sprintf("地址解析失败: %v", err)}
 	}
 
 	start := time.Now()
@@ -38,10 +36,10 @@ func TestConnectivity(proxyId string, proxyConfig string, proxies []config.Brows
 	latency := time.Since(start).Milliseconds()
 
 	if err != nil {
-		return TestResult{ProxyId: proxyId, Ok: false, LatencyMs: latency, Error: err.Error()}
+		return TestResult{ProxyId: proxyId, Ok: false, LatencyMs: latency, Engine: "tcp", Error: err.Error()}
 	}
 	conn.Close()
-	return TestResult{ProxyId: proxyId, Ok: true, LatencyMs: latency}
+	return TestResult{ProxyId: proxyId, Ok: true, LatencyMs: latency, Engine: "tcp"}
 }
 
 // TestRealConnectivity 通过代理链路发起真实 HTTP 请求测量端到端延迟。
@@ -86,8 +84,9 @@ func TestRealConnectivityWithRuntimeConfig(
 	cfg *SpeedTestConfig,
 ) TestResult {
 	src := resolveProxyConfig("", proxies, proxyId)
+	engine := speedTestProbeEngine(src, proxies, proxyId, connectorType)
 	if src == "" {
-		return TestResult{ProxyId: proxyId, Ok: false, Error: "代理配置为空"}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: engine, Error: "代理配置为空"}
 	}
 
 	targetURLs := defaultRealConnectivityTargets()
@@ -105,12 +104,12 @@ func TestRealConnectivityWithRuntimeConfig(
 	}
 	targetURLs = uniqueSpeedTestURLs(targetURLs)
 	if len(targetURLs) == 0 {
-		return TestResult{ProxyId: proxyId, Ok: false, Error: "真实连通性测试目标 URL 为空"}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: engine, Error: "真实连通性测试目标 URL 为空"}
 	}
 
 	client, err := buildProxyHTTPClient(src, proxyId, proxies, xrayMgr, singboxMgr, clashMgr, connectorType, timeout)
 	if err != nil {
-		return TestResult{ProxyId: proxyId, Ok: false, Error: err.Error()}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: engine, Error: err.Error()}
 	}
 
 	var lastErr error
@@ -122,27 +121,19 @@ func TestRealConnectivityWithRuntimeConfig(
 		lastLatency = latency
 		if err != nil {
 			lastErr = err
-			if isTimeoutError(err) {
-				if endpointResult := tcpPingFallback(proxyId, src, minPositiveDuration(timeout, 5*time.Second), nil); endpointResult.Ok {
-					return endpointResult
-				}
-			}
 			continue
 		}
 		_ = resp.Body.Close()
 		if isSpeedTestSuccessStatus(resp.StatusCode) {
-			return TestResult{ProxyId: proxyId, Ok: true, LatencyMs: latency}
+			return TestResult{ProxyId: proxyId, Ok: true, LatencyMs: latency, Engine: engine}
 		}
 		lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	if endpointResult := tcpPingFallback(proxyId, src, minPositiveDuration(timeout, 5*time.Second), nil); endpointResult.Ok {
-		return endpointResult
-	}
 	if lastErr != nil {
-		return TestResult{ProxyId: proxyId, Ok: false, LatencyMs: lastLatency, Error: lastErr.Error()}
+		return TestResult{ProxyId: proxyId, Ok: false, LatencyMs: lastLatency, Engine: engine, Error: "真实访问失败: " + lastErr.Error()}
 	}
-	return TestResult{ProxyId: proxyId, Ok: false, LatencyMs: lastLatency, Error: "真实连通性测试失败"}
+	return TestResult{ProxyId: proxyId, Ok: false, LatencyMs: lastLatency, Engine: engine, Error: "真实连通性测试失败"}
 }
 
 func defaultRealConnectivityTargets() []string {
@@ -179,26 +170,5 @@ func uniqueSpeedTestURLs(urls []string) []string {
 }
 
 func isSpeedTestSuccessStatus(statusCode int) bool {
-	return statusCode == http.StatusNoContent || (statusCode >= 200 && statusCode < 400)
-}
-
-func minPositiveDuration(a time.Duration, b time.Duration) time.Duration {
-	if a <= 0 {
-		return b
-	}
-	if b <= 0 || a < b {
-		return a
-	}
-	return b
-}
-
-func isTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if os.IsTimeout(err) {
-		return true
-	}
-	var netErr net.Error
-	return errors.As(err, &netErr) && netErr.Timeout()
+	return statusCode == http.StatusNoContent || (statusCode >= 200 && statusCode < 300)
 }

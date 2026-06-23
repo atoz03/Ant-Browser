@@ -1,4 +1,5 @@
 ﻿import { Button, FormItem, Input, Modal, Select, Textarea } from '../../../../shared/components'
+import type { BrowserProxy } from '../../types'
 import {
   CHAIN_QUICK_IMPORT_TEMPLATE,
   DIRECT_QUICK_IMPORT_TEMPLATE,
@@ -13,6 +14,7 @@ interface ProxyPoolImportModalProps {
   groups: string[]
   importMode: ProxyImportMode
   importUrl: string
+  importFetchProxyId: string
   importResolvedUrl: string
   importText: string
   importDnsServers: string
@@ -23,12 +25,14 @@ interface ProxyPoolImportModalProps {
   chainImportForm: ChainImportForm
   directImportForm: DirectImportForm
   fetchingImportUrl: boolean
+  fetchProxyOptions: BrowserProxy[]
   canParseImport: boolean
   onClose: () => void
   onParse: () => void
   onFetchImportUrl: () => void
   onImportModeChange: (nextMode: ProxyImportMode) => void
   onImportUrlChange: (nextValue: string) => void
+  onImportFetchProxyIdChange: (nextValue: string) => void
   onImportTextChange: (nextValue: string) => void
   onImportDnsServersChange: (nextValue: string) => void
   onImportNamePrefixChange: (nextValue: string) => void
@@ -51,6 +55,7 @@ export function ProxyPoolImportModal({
   groups,
   importMode,
   importUrl,
+  importFetchProxyId,
   importResolvedUrl,
   importText,
   importDnsServers,
@@ -61,12 +66,14 @@ export function ProxyPoolImportModal({
   chainImportForm,
   directImportForm,
   fetchingImportUrl,
+  fetchProxyOptions,
   canParseImport,
   onClose,
   onParse,
   onFetchImportUrl,
   onImportModeChange,
   onImportUrlChange,
+  onImportFetchProxyIdChange,
   onImportTextChange,
   onImportDnsServersChange,
   onImportNamePrefixChange,
@@ -121,22 +128,27 @@ export function ProxyPoolImportModal({
             链式代理
           </Button>
         </div>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {importMode === 'clash'
-            ? '支持粘贴 Clash YAML，或通过订阅 URL 自动拉取并解析（含 proxies、dns、proxy-groups）'
-            : importMode === 'direct'
-              ? '支持单条录入 HTTP / HTTPS / SOCKS5 代理，也支持 JSON 或多行标准代理文本批量导入，导入后直接生效，不走 Clash 桥接'
-              : '支持两层 SOCKS5 链式代理，使用 JSON 导入，导入后将由本地桥接生成 127.0.0.1 SOCKS5 供 Chromium 使用'}
-        </p>
         {importMode === 'clash' && (
           <>
             <FormItem label="订阅 URL（可选）">
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_150px_auto] gap-2">
                 <Input
                   value={importUrl}
                   onChange={(event) => onImportUrlChange(event.target.value)}
                   placeholder="订阅 URL"
                   className="flex-1"
+                />
+                <Select
+                  value={importFetchProxyId}
+                  onChange={(event) => onImportFetchProxyIdChange(event.target.value)}
+                  disabled={fetchingImportUrl}
+                  options={[
+                    { value: '', label: '直连拉取' },
+                    ...fetchProxyOptions.map(proxy => ({
+                      value: proxy.proxyId,
+                      label: proxy.proxyName || proxy.proxyId,
+                    })),
+                  ]}
                 />
                 <Button
                   variant="secondary"
@@ -152,9 +164,6 @@ export function ProxyPoolImportModal({
                   已绑定订阅：{importResolvedUrl}
                 </p>
               )}
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                获取成功后会自动回填 YAML 文本，并尝试自动填充 DNS 与建议分组；自动刷新时间请在列表顶部统一配置
-              </p>
             </FormItem>
             <Textarea
               value={importText}

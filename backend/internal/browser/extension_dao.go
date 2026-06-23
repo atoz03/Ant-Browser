@@ -17,6 +17,7 @@ type ExtensionDAO interface {
 	Delete(extensionID string) error
 	GetProfileSettings(profileID string) (ProfileExtensionSettings, error)
 	SetProfileSettings(profileID string, extensionIDs []string, configured bool) (ProfileExtensionSettings, error)
+	DeleteProfileSettings(profileID string) error
 }
 
 type SQLiteExtensionDAO struct {
@@ -173,6 +174,25 @@ func (d *SQLiteExtensionDAO) SetProfileSettings(profileID string, extensionIDs [
 		return ProfileExtensionSettings{}, err
 	}
 	return d.GetProfileSettings(profileID)
+}
+
+func (d *SQLiteExtensionDAO) DeleteProfileSettings(profileID string) error {
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM browser_profile_extensions WHERE profile_id = ?`, profileID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM browser_profile_extension_settings WHERE profile_id = ?`, profileID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (d *SQLiteExtensionDAO) listWhere(where string, args []any) ([]Extension, error) {

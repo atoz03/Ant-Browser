@@ -1,10 +1,16 @@
 package proxy
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 func applyClashTLSClientOptions(node map[string]interface{}, tlsSettings map[string]interface{}) {
 	if fingerprint := getMapString(node, "client-fingerprint"); fingerprint != "" {
 		tlsSettings["fingerprint"] = fingerprint
+	}
+	if getMapBool(node, "skip-cert-verify") {
+		tlsSettings[xrayTLSInsecurePinKey] = true
 	}
 	if alpnRaw, ok := node["alpn"]; ok {
 		if alpnList := toStringSlice(alpnRaw); len(alpnList) > 0 {
@@ -77,4 +83,14 @@ func firstNonEmptyMapString(m map[string]interface{}, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func queryBool(query url.Values, keys ...string) bool {
+	for _, key := range keys {
+		value := strings.ToLower(strings.TrimSpace(query.Get(key)))
+		if value == "1" || value == "true" || value == "yes" {
+			return true
+		}
+	}
+	return false
 }

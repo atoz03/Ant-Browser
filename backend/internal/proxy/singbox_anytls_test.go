@@ -152,3 +152,39 @@ port: 443
 		t.Fatalf("expected missing password to fail")
 	}
 }
+
+func TestBuildSingBoxAnyTLSFromURI(t *testing.T) {
+	src := "anytls://test-password@anytls.example.com:25535?sni=ai.gitee.com&insecure=1&idle-session-timeout=30#AnyTLS"
+	if !IsSingBoxProtocol(src) {
+		t.Fatalf("expected anytls URI to be treated as sing-box protocol")
+	}
+	out, err := BuildSingBoxOutbound(src)
+	if err != nil {
+		t.Fatalf("BuildSingBoxOutbound returned error: %v", err)
+	}
+	if got := out["type"]; got != "anytls" {
+		t.Fatalf("type = %v, want anytls", got)
+	}
+	if got := out["server"]; got != "anytls.example.com" {
+		t.Fatalf("server = %v, want anytls.example.com", got)
+	}
+	if got := out["server_port"]; got != 25535 {
+		t.Fatalf("server_port = %v, want 25535", got)
+	}
+	if got := out["password"]; got != "test-password" {
+		t.Fatalf("password = %v, want test-password", got)
+	}
+	if got := out["idle_session_timeout"]; got != "30s" {
+		t.Fatalf("idle_session_timeout = %v, want 30s", got)
+	}
+	tls, ok := out["tls"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("tls is %T, want map[string]interface{}", out["tls"])
+	}
+	if got := tls["server_name"]; got != "ai.gitee.com" {
+		t.Fatalf("tls.server_name = %v, want ai.gitee.com", got)
+	}
+	if got := tls["insecure"]; got != true {
+		t.Fatalf("tls.insecure = %v, want true", got)
+	}
+}

@@ -46,9 +46,9 @@ func (a *App) startBrowserProfileWithPlan(input browserStartInput, plan *browser
 		stableDebugPort, readyErr := waitBrowserDebugPortStable(plan.assignedDebugPort, plan.userDataDir, plan.startReadyTimeout, plan.startStableWindow, monitor)
 		if readyErr == nil {
 			a.markProfileRunningLocked(input.ProfileID, profile, cmd, cmd.Process.Pid, stableDebugPort, true, "")
-			if plan.acquiredXrayBridgeKey != "" {
-				a.bindProfileXrayBridge(input.ProfileID, plan.acquiredXrayBridgeKey)
-				plan.releaseXrayBridge = false
+			if plan.acquiredProxyBridge.valid() {
+				a.bindProfileProxyBridge(input.ProfileID, plan.acquiredProxyBridge)
+				plan.releaseProxyBridge = false
 			}
 			if len(plan.deferredStartTargets) > 0 {
 				if err := openBrowserStartTargets(stableDebugPort, plan.deferredStartTargets); err != nil {
@@ -115,9 +115,9 @@ func (a *App) startBrowserProfileWithPlan(input browserStartInput, plan *browser
 		if len(plan.deferredStartTargets) > 0 {
 			a.storeDeferredStartTargets(input.ProfileID, plan.deferredStartTargets)
 		}
-		if plan.acquiredXrayBridgeKey != "" {
-			a.bindProfileXrayBridge(input.ProfileID, plan.acquiredXrayBridgeKey)
-			plan.releaseXrayBridge = false
+		if plan.acquiredProxyBridge.valid() {
+			a.bindProfileProxyBridge(input.ProfileID, plan.acquiredProxyBridge)
+			plan.releaseProxyBridge = false
 		}
 
 		log.Warn("浏览器窗口已启动，但调试接口在等待窗口内未就绪，转入后台附着",

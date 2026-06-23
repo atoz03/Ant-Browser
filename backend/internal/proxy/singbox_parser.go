@@ -12,7 +12,7 @@ import (
 // IsSingBoxProtocol 判断是否为 sing-box 支持的协议（hysteria2/tuic）
 func IsSingBoxProtocol(proxyConfig string) bool {
 	l := strings.ToLower(strings.TrimSpace(proxyConfig))
-	if strings.HasPrefix(l, "hysteria2://") || strings.HasPrefix(l, "hysteria://") {
+	if strings.HasPrefix(l, "hysteria2://") || strings.HasPrefix(l, "hysteria://") || strings.HasPrefix(l, "anytls://") {
 		return true
 	}
 	// Clash YAML 格式
@@ -32,6 +32,9 @@ func BuildSingBoxOutbound(node string) (map[string]interface{}, error) {
 
 	if strings.HasPrefix(l, "hysteria2://") || strings.HasPrefix(l, "hysteria://") {
 		return parseHysteria2URI(src)
+	}
+	if strings.HasPrefix(l, "anytls://") {
+		return parseAnyTLSURI(src)
 	}
 
 	// Clash YAML 格式
@@ -71,6 +74,7 @@ func parseHysteria2URI(node string) (map[string]interface{}, error) {
 	}
 	insecure := q.Get("insecure") == "1" || strings.ToLower(q.Get("insecure")) == "true"
 	obfsPassword := q.Get("obfs-password")
+	serverPorts := parseSingBoxServerPorts(q.Get("mport"))
 
 	if host == "" || port == 0 {
 		return nil, fmt.Errorf("hysteria2 节点信息不完整: host=%s port=%d", host, port)
@@ -91,6 +95,10 @@ func parseHysteria2URI(node string) (map[string]interface{}, error) {
 	if sni != "" {
 		out["tls"].(map[string]interface{})["server_name"] = sni
 	}
+	if serverPorts != "" {
+		out["server_ports"] = serverPorts
+		delete(out, "server_port")
+	}
 	applySingBoxTLSClientOptionsFromQuery(q, out["tls"].(map[string]interface{}))
 
 	if obfsPassword != "" {
@@ -101,6 +109,63 @@ func parseHysteria2URI(node string) (map[string]interface{}, error) {
 	}
 
 	return out, nil
+}
+
+func parseAnyTLSURI(node string) (map[string]interface{}, error) {
+	u, err := url.Parse(node)
+	if err != nil {
+		return nil, fmt.Errorf("anytls URI 解析失败: %v", err)
+	}
+	host := u.Hostname()
+	portStr := u.Port()
+	port, _ := strconv.Atoi(portStr)
+	password := u.User.Username()
+	q := u.Query()
+	sni := firstNonEmptyQueryValue(q, "sni", "peer", "servername")
+	insecure := queryBool(q, "insecure", "allowInsecure", "skip-cert-verify")
+
+	if host == "" || port == 0 || password == "" {
+		return nil, fmt.Errorf("anytls URI 节点信息不完整: host=%s port=%d password_empty=%v", host, port, password == "")
+	}
+
+	tls := map[string]interface{}{
+		"enabled":  true,
+		"insecure": insecure,
+	}
+	if sni != "" {
+		tls["server_name"] = sni
+	}
+	applySingBoxTLSClientOptionsFromQuery(q, tls)
+
+	out := map[string]interface{}{
+		"type":        "anytls",
+		"tag":         "proxy-out",
+		"server":      host,
+		"server_port": port,
+		"password":    password,
+		"tls":         tls,
+	}
+	if interval := queryDurationSecondsString(q, "idle-session-check-interval"); interval != "" {
+		out["idle_session_check_interval"] = interval
+	}
+	if timeout := queryDurationSecondsString(q, "idle-session-timeout"); timeout != "" {
+		out["idle_session_timeout"] = timeout
+	}
+	if minIdleSession, err := strconv.Atoi(strings.TrimSpace(q.Get("min-idle-session"))); err == nil && minIdleSession > 0 {
+		out["min_idle_session"] = minIdleSession
+	}
+	return out, nil
+}
+
+func queryDurationSecondsString(q url.Values, key string) string {
+	value := strings.TrimSpace(q.Get(key))
+	if value == "" {
+		return ""
+	}
+	if _, err := strconv.Atoi(value); err == nil {
+		return value + "s"
+	}
+	return value
 }
 
 // parseClashSingBoxNode 解析 Clash YAML 格式的 sing-box 节点
@@ -204,6 +269,9 @@ func buildSingBoxHysteria2FromClash(node map[string]interface{}) (map[string]int
 		"password":    password,
 		"tls":         tls,
 	}
+	if serverPorts := clashHysteria2ServerPorts(node); serverPorts != "" {
+		out["server_ports"] = serverPorts
+	}
 
 	// 带宽限制（可选）
 	if up := getMapString(node, "up"); up != "" {
@@ -225,6 +293,26 @@ func buildSingBoxHysteria2FromClash(node map[string]interface{}) (map[string]int
 	}
 
 	return out, nil
+}
+
+func clashHysteria2ServerPorts(node map[string]interface{}) string {
+	return parseSingBoxServerPorts(firstNonEmptyMapString(node, "ports", "mport"))
+}
+
+func parseSingBoxServerPorts(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	ranges := make([]string, 0)
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		item = strings.ReplaceAll(item, "-", ":")
+		ranges = append(ranges, item)
+	}
+	return strings.Join(ranges, ",")
 }
 
 func buildSingBoxTUICFromClash(node map[string]interface{}) (map[string]interface{}, error) {

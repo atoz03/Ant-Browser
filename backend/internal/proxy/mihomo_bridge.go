@@ -5,8 +5,11 @@ import (
 	"ant-chrome/backend/internal/config"
 	"ant-chrome/backend/internal/fsutil"
 	"ant-chrome/backend/internal/logger"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,15 +21,16 @@ import (
 )
 
 type MihomoNodeBridge struct {
-	NodeKey    string
-	Port       int
-	Cmd        *exec.Cmd
-	Pid        int
-	ConfigPath string
-	Running    bool
-	LastUsedAt time.Time
-	ExitDone   chan struct{}
-	ExitErr    error
+	NodeKey        string
+	Port           int
+	ControllerPort int
+	Cmd            *exec.Cmd
+	Pid            int
+	ConfigPath     string
+	Running        bool
+	LastUsedAt     time.Time
+	ExitDone       chan struct{}
+	ExitErr        error
 }
 
 func (m *ClashManager) EnsureNodeBridge(proxyConfig string, proxies []config.BrowserProxy, proxyId string) (string, error) {
@@ -60,7 +64,11 @@ func (m *ClashManager) EnsureNodeBridge(proxyConfig string, proxies []config.Bro
 	if err != nil {
 		return "", err
 	}
-	cfgPath, err := m.buildMihomoNodeConfig(key, node, port)
+	controllerPort, err := nextAvailablePort()
+	if err != nil {
+		return "", err
+	}
+	cfgPath, err := m.buildMihomoNodeConfig(key, node, port, controllerPort)
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +87,7 @@ func (m *ClashManager) EnsureNodeBridge(proxyConfig string, proxies []config.Bro
 		}
 		return "", fmt.Errorf("mihomo 启动失败: %w", err)
 	}
-	bridge := &MihomoNodeBridge{NodeKey: key, Port: port, Cmd: cmd, Pid: cmd.Process.Pid, ConfigPath: cfgPath, Running: true, LastUsedAt: time.Now(), ExitDone: make(chan struct{})}
+	bridge := &MihomoNodeBridge{NodeKey: key, Port: port, ControllerPort: controllerPort, Cmd: cmd, Pid: cmd.Process.Pid, ConfigPath: cfgPath, Running: true, LastUsedAt: time.Now(), ExitDone: make(chan struct{})}
 	m.watchMihomoNodeBridge(bridge)
 	if err := waitTCPPortReady("127.0.0.1", port, 10*time.Second); err != nil {
 		if stderrFile != nil {
@@ -87,6 +95,13 @@ func (m *ClashManager) EnsureNodeBridge(proxyConfig string, proxies []config.Bro
 		}
 		_ = cmd.Process.Kill()
 		return "", fmt.Errorf("mihomo mixed-port 未就绪: %w", err)
+	}
+	if err := waitTCPPortReady("127.0.0.1", controllerPort, 10*time.Second); err != nil {
+		if stderrFile != nil {
+			stderrFile.Close()
+		}
+		_ = cmd.Process.Kill()
+		return "", fmt.Errorf("mihomo 控制端口未就绪: %w", err)
 	}
 	if stderrFile != nil {
 		stderrFile.Close()
@@ -129,6 +144,72 @@ func (m *ClashManager) tryReuseMihomoNodeBridge(key string) (string, bool) {
 	bridge.LastUsedAt = time.Now()
 	m.mu.Unlock()
 	return fmt.Sprintf("http://127.0.0.1:%d", bridge.Port), true
+}
+
+func (m *ClashManager) TestNodeDelay(proxyId string, proxies []config.BrowserProxy, cfg *SpeedTestConfig) TestResult {
+	src := strings.TrimSpace(resolveProxyConfig("", proxies, proxyId))
+	if src == "" {
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: "代理配置为空"}
+	}
+	if strings.EqualFold(src, "direct://") {
+		return TestResult{ProxyId: proxyId, Ok: true, LatencyMs: 0, Engine: "direct"}
+	}
+	if m == nil {
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: "mihomo 管理器未初始化"}
+	}
+	if _, err := m.EnsureNodeBridge(src, proxies, proxyId); err != nil {
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: err.Error()}
+	}
+	key := computeNodeKey(src + "\x00mihomo")
+	m.mu.Lock()
+	bridge := m.NodeBridges[key]
+	m.mu.Unlock()
+	if bridge == nil || !bridge.Running || bridge.ControllerPort <= 0 {
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: "mihomo 控制端口未就绪"}
+	}
+	timeout := 10 * time.Second
+	testURL := DefaultSpeedTestURL
+	if cfg != nil {
+		if cfg.Timeout > 0 {
+			timeout = cfg.Timeout
+		}
+		if urls := normalizeSpeedTestURLs(cfg.URLs); len(urls) > 0 {
+			testURL = urls[0]
+		}
+	}
+	apiURL := fmt.Sprintf(
+		"http://127.0.0.1:%d/proxies/%s/delay?timeout=%d&url=%s",
+		bridge.ControllerPort,
+		url.PathEscape("proxy-out"),
+		int(timeout.Milliseconds()),
+		url.QueryEscape(testURL),
+	)
+	client := &http.Client{Timeout: timeout + time.Second}
+	resp, err := client.Get(apiURL)
+	if err != nil {
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: "mihomo 延迟测试失败: " + err.Error()}
+	}
+	defer resp.Body.Close()
+	var payload struct {
+		Delay int64  `json:"delay"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: "mihomo 延迟结果解析失败: " + err.Error()}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if payload.Error != "" {
+			return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: payload.Error}
+		}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: fmt.Sprintf("mihomo 延迟测试失败: HTTP %d", resp.StatusCode)}
+	}
+	if payload.Delay <= 0 {
+		if payload.Error != "" {
+			return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: payload.Error}
+		}
+		return TestResult{ProxyId: proxyId, Ok: false, Engine: "mihomo", Error: "mihomo 延迟测试无结果"}
+	}
+	return TestResult{ProxyId: proxyId, Ok: true, LatencyMs: payload.Delay, Engine: "mihomo"}
 }
 
 func (m *ClashManager) registerMihomoNodeBridge(key string, bridge *MihomoNodeBridge) {
@@ -189,7 +270,7 @@ func (m *ClashManager) lockLaunchForKey(key string) func() {
 	}
 }
 
-func (m *ClashManager) buildMihomoNodeConfig(key string, node map[string]interface{}, port int) (string, error) {
+func (m *ClashManager) buildMihomoNodeConfig(key string, node map[string]interface{}, port int, controllerPort int) (string, error) {
 	baseDir := m.resolveMihomoWorkdir(key)
 	if err := os.MkdirAll(baseDir, 0o755); err != nil {
 		return "", err
@@ -200,14 +281,15 @@ func (m *ClashManager) buildMihomoNodeConfig(key string, node map[string]interfa
 		node["name"] = name
 	}
 	payload := map[string]interface{}{
-		"mixed-port":     port,
-		"allow-lan":      false,
-		"mode":           "rule",
-		"log-level":      "warning",
-		"ipv6":           true,
-		"unified-delay":  true,
-		"tcp-concurrent": false,
-		"proxies":        []interface{}{node},
+		"mixed-port":          port,
+		"external-controller": fmt.Sprintf("127.0.0.1:%d", controllerPort),
+		"allow-lan":           false,
+		"mode":                "rule",
+		"log-level":           "warning",
+		"ipv6":                true,
+		"unified-delay":       true,
+		"tcp-concurrent":      false,
+		"proxies":             []interface{}{node},
 		"proxy-groups": []interface{}{
 			map[string]interface{}{
 				"name":    "proxy-out",
@@ -269,7 +351,14 @@ func (m *ClashManager) resolveMihomoBinary() (string, error) {
 		}
 	}
 	if m.AppRoot != "" {
-		candidates = append(candidates, filepath.Join(m.AppRoot, "bin", "mihomo.exe"), filepath.Join(m.AppRoot, "bin", "mihomo"))
+		candidates = append(candidates,
+			filepath.Join(m.AppRoot, "bin", "mihomo.exe"),
+			filepath.Join(m.AppRoot, "bin", "mihomo"),
+			filepath.Join(m.AppRoot, "bin", runtime.GOOS+"-"+runtime.GOARCH, "mihomo", "mihomo.exe"),
+			filepath.Join(m.AppRoot, "bin", runtime.GOOS+"-"+runtime.GOARCH, "mihomo", "mihomo"),
+			filepath.Join(m.AppRoot, "bin", runtime.GOOS+"-"+runtime.GOARCH, "mihomo.exe"),
+			filepath.Join(m.AppRoot, "bin", runtime.GOOS+"-"+runtime.GOARCH, "mihomo"),
+		)
 	}
 	for _, candidate := range candidates {
 		candidate = fsutil.NormalizePathInput(candidate)

@@ -43,6 +43,63 @@ func writeMockPlaywrightModuleWithPersistentConnection(runtimeDir, version, expe
 	return writeMockPlaywrightModuleWithOptions(runtimeDir, version, expectedEndpoint, true)
 }
 
+func writeMockPlaywrightModuleCountingNewPages(runtimeDir, version, markerPath string) error {
+	moduleDir := filepath.Join(runtimeDir, "node_modules", "playwright-core")
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		return err
+	}
+
+	packageJSON := fmt.Sprintf("{\"name\":\"playwright-core\",\"version\":\"%s\",\"main\":\"index.js\"}", version)
+	if err := os.WriteFile(filepath.Join(moduleDir, "package.json"), []byte(packageJSON), 0o644); err != nil {
+		return err
+	}
+
+	markerPathJSON, err := json.Marshal(markerPath)
+	if err != nil {
+		return err
+	}
+
+	indexJS := fmt.Sprintf(`const fs = require('fs');
+
+const markerPath = %s;
+let newPageCount = 0;
+
+const context = {
+  async newPage() {
+    newPageCount += 1;
+    fs.writeFileSync(markerPath, String(newPageCount));
+    return {
+      async bringToFront() {},
+      async goto() {},
+      async waitForLoadState() {},
+      async waitForTimeout() {},
+      isClosed() {
+        return false;
+      },
+      url() {
+        return 'about:blank';
+      },
+    };
+  },
+  pages() {
+    return [];
+  },
+};
+
+exports.chromium = {
+  async connectOverCDP() {
+    return {
+      contexts() {
+        return [context];
+      },
+      async close() {},
+    };
+  },
+};
+`, string(markerPathJSON))
+	return os.WriteFile(filepath.Join(moduleDir, "index.js"), []byte(indexJS), 0o644)
+}
+
 func writeMockPlaywrightModuleWithExpectedConnectTimeout(runtimeDir, version string, expectedConnectTimeout int) error {
 	moduleDir := filepath.Join(runtimeDir, "node_modules", "playwright-core")
 	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
@@ -179,13 +236,15 @@ function createPage() {
   };
 }
 
+const initialPage = createPage();
+
 const context = {
   async grantPermissions() {},
   async newPage() {
     return createPage();
   },
   pages() {
-    return [];
+    return [initialPage];
   },
 };
 

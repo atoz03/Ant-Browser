@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { CheckCircle, Edit2, Plus, Star, Trash2, XCircle } from 'lucide-react'
-import { Button, Card, FormItem, Input, Modal, Select, Switch, Table, Textarea, toast } from '../../../shared/components'
+import { Button, Card, FormItem, Input, Modal, Switch, Table, Textarea, toast } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
 import type { BrowserCore, BrowserCoreInput, BrowserSettings } from '../types'
 import {
@@ -122,16 +122,6 @@ export function BrowserSettingsModal({ open, onClose, settings: initSettings, co
             </div>
             <Card padding="none"><Table columns={coreColumns} data={cores} rowKey="coreId" /></Card>
           </div>
-          <FormItem label="代理内核">
-            <Select
-              value={settings.defaultConnectorType || 'xray'}
-              onChange={e => setSettings(p => ({ ...p, defaultConnectorType: e.target.value }))}
-              options={[
-                { value: 'xray', label: 'Xray' },
-                { value: 'mihomo', label: 'Mihomo' },
-              ]}
-            />
-          </FormItem>
           <FormItem label="用户数据根目录">
             <Input value={settings.userDataRoot} onChange={e => setSettings(p => ({ ...p, userDataRoot: e.target.value }))} placeholder="data" />
           </FormItem>

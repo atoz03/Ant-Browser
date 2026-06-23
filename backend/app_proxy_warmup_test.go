@@ -29,8 +29,8 @@ func TestWarmupProxyBridgeStandardProxyDoesNotRequireBridge(t *testing.T) {
 	if !result.Ok {
 		t.Fatalf("standard proxy warmup failed: %s", result.Error)
 	}
-	if result.Engine != "none" {
-		t.Fatalf("engine = %q, want none", result.Engine)
+	if result.Engine != "native" {
+		t.Fatalf("engine = %q, want native", result.Engine)
 	}
 }
 

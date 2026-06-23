@@ -9,10 +9,10 @@ import {
   browserProxyTestSpeed,
   browserProxyWarmupBridge,
 } from '../../api'
-import type { ProxyIPHealthResult } from '../../types'
+import type { ProxyIPHealthResult, ProxySpeedTestResult } from '../../types'
 import type { ProxyDisplayInfo } from './helpers'
 import { toLatencyValue } from './storage'
-import { readIPHealthCache, readLatencyCache, writeIPHealthCache, writeLatencyCache } from './storage'
+import { readIPHealthCache, readLatencyCache, readLatencyEngineCache, writeIPHealthCache, writeLatencyCache, writeLatencyEngineCache } from './storage'
 
 interface UseProxyChecksOptions {
   proxies: Array<{ proxyId: string }>
@@ -20,6 +20,8 @@ interface UseProxyChecksOptions {
 
 export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
   const [latencyMap, setLatencyMap] = useState<Record<string, number>>({})
+  const [latencyEngineMap, setLatencyEngineMap] = useState<Record<string, string>>({})
+  const [latencyErrorMap, setLatencyErrorMap] = useState<Record<string, string>>({})
   const [testingAll, setTestingAll] = useState(false)
   const [ipHealthMap, setIPHealthMap] = useState<Record<string, ProxyIPHealthResult>>({})
   const [checkingIPHealthIds, setCheckingIPHealthIds] = useState<Set<string>>(new Set())
@@ -31,12 +33,17 @@ export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
 
   useEffect(() => {
     setLatencyMap(readLatencyCache())
+    setLatencyEngineMap(readLatencyEngineCache())
     setIPHealthMap(readIPHealthCache())
   }, [])
 
   useEffect(() => {
     writeLatencyCache(latencyMap)
   }, [latencyMap])
+
+  useEffect(() => {
+    writeLatencyEngineCache(latencyEngineMap)
+  }, [latencyEngineMap])
 
   useEffect(() => {
     writeIPHealthCache(ipHealthMap)
@@ -50,6 +57,26 @@ export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
       const next: Record<string, number> = {}
       Object.entries(prev).forEach(([proxyId, latency]) => {
         if (validIds.has(proxyId)) next[proxyId] = latency
+        else changed = true
+      })
+      return changed ? next : prev
+    })
+
+    setLatencyEngineMap(prev => {
+      let changed = false
+      const next: Record<string, string> = {}
+      Object.entries(prev).forEach(([proxyId, engine]) => {
+        if (validIds.has(proxyId)) next[proxyId] = engine
+        else changed = true
+      })
+      return changed ? next : prev
+    })
+
+    setLatencyErrorMap(prev => {
+      let changed = false
+      const next: Record<string, string> = {}
+      Object.entries(prev).forEach(([proxyId, error]) => {
+        if (validIds.has(proxyId)) next[proxyId] = error
         else changed = true
       })
       return changed ? next : prev
@@ -72,9 +99,21 @@ export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
       return
     }
     setLatencyMap(prev => ({ ...prev, [record.proxyId]: -1 }))
+    setLatencyEngineMap(prev => {
+      const next = { ...prev }
+      delete next[record.proxyId]
+      return next
+    })
+    setLatencyErrorMap(prev => {
+      const next = { ...prev }
+      delete next[record.proxyId]
+      return next
+    })
     const result = await browserProxyTestSpeed(record.proxyId)
     const val = toLatencyValue(result.ok, result.latencyMs, result.error)
     setLatencyMap(prev => ({ ...prev, [record.proxyId]: val }))
+    if (result.error) setLatencyErrorMap(prev => ({ ...prev, [record.proxyId]: result.error || '' }))
+    if (result.engine) setLatencyEngineMap(prev => ({ ...prev, [record.proxyId]: result.engine || '' }))
   }
 
   const handleTestAll = async (items: ProxyDisplayInfo[]) => {
@@ -84,19 +123,45 @@ export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
     const init: Record<string, number> = {}
     testable.forEach(p => { init[p.proxyId] = -1 })
     setLatencyMap(prev => ({ ...prev, ...init }))
+    setLatencyEngineMap(prev => {
+      const next = { ...prev }
+      testable.forEach(p => { delete next[p.proxyId] })
+      return next
+    })
+    setLatencyErrorMap(prev => {
+      const next = { ...prev }
+      testable.forEach(p => { delete next[p.proxyId] })
+      return next
+    })
 
-    const off = EventsOn('proxy:speed:result', (data: { proxyId: string; ok: boolean; latencyMs: number; error: string }) => {
+    const off = EventsOn('proxy:speed:result', (data: ProxySpeedTestResult) => {
       const val = toLatencyValue(data.ok, data.latencyMs, data.error)
       setLatencyMap(prev => ({ ...prev, [data.proxyId]: val }))
+      if (data.error) setLatencyErrorMap(prev => ({ ...prev, [data.proxyId]: data.error || '' }))
+      if (data.engine) setLatencyEngineMap(prev => ({ ...prev, [data.proxyId]: data.engine || '' }))
     })
 
     try {
       const proxyIds = testable.map(p => p.proxyId)
-      const results = await browserProxyBatchTestSpeed(proxyIds, 20)
+      const results = await browserProxyBatchTestSpeed(proxyIds, 0)
       setLatencyMap(prev => {
         const next = { ...prev }
         results.forEach(result => {
           next[result.proxyId] = toLatencyValue(result.ok, result.latencyMs, result.error)
+        })
+        return next
+      })
+      setLatencyEngineMap(prev => {
+        const next = { ...prev }
+        results.forEach(result => {
+          if (result.engine) next[result.proxyId] = result.engine
+        })
+        return next
+      })
+      setLatencyErrorMap(prev => {
+        const next = { ...prev }
+        results.forEach(result => {
+          if (result.error) next[result.proxyId] = result.error
         })
         return next
       })
@@ -220,6 +285,8 @@ export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
 
   return {
     latencyMap,
+    latencyEngineMap,
+    latencyErrorMap,
     testingAll,
     ipHealthMap,
     checkingIPHealthIds,
@@ -230,6 +297,7 @@ export function useProxyChecks({ proxies }: UseProxyChecksOptions) {
     setIPHealthDetailOpen,
     currentIPHealthDetail,
     setLatencyMap,
+    setLatencyEngineMap,
     setIPHealthMap,
     handleTestOne,
     handleTestAll,

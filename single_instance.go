@@ -1,7 +1,6 @@
 package main
 
 import (
-	"ant-chrome/backend"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -28,10 +27,7 @@ type singleInstanceGuard struct {
 }
 
 func acquireSingleInstance(appRoot string) (*singleInstanceGuard, bool, error) {
-	stateRoot := filepath.Join(appRoot, "data")
-	if root := strings.TrimSpace(backendRuntimeStateRoot(appRoot)); root != "" {
-		stateRoot = root
-	}
+	stateRoot := singleInstanceStateRoot(appRoot)
 	if err := os.MkdirAll(stateRoot, 0o755); err != nil {
 		return nil, false, fmt.Errorf("准备单实例状态目录失败: %w", err)
 	}
@@ -89,10 +85,6 @@ func writeSingleInstanceLockInfo(file *os.File, info singleInstanceLockInfo) err
 		return err
 	}
 	return file.Sync()
-}
-
-func backendRuntimeStateRoot(appRoot string) string {
-	return backend.RuntimeStateRoot(appRoot)
 }
 
 func signalExistingSingleInstance(lockPath string) bool {

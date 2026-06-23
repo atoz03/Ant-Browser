@@ -7,6 +7,8 @@ interface CoreSettingsCardProps {
   onEdit: () => void
 }
 
+const settingsValueClass = 'h-14 overflow-auto rounded-md bg-[var(--color-bg-subtle)] px-3 py-2 text-sm leading-5 text-[var(--color-text-primary)]'
+
 export function CoreSettingsCard({ settings, onEdit }: CoreSettingsCardProps) {
   return (
     <Card>
@@ -38,7 +40,7 @@ function SettingsValue({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
-      <div className="min-h-9 rounded-md bg-[var(--color-bg-subtle)] px-3 py-2 text-sm leading-5 text-[var(--color-text-primary)]">
+      <div className={`${settingsValueClass} break-all`}>
         {value}
       </div>
     </div>
@@ -50,11 +52,11 @@ function SettingsList({ label, values }: { label: string; values: string[] }) {
     <div>
       <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
       {values.length > 0 ? (
-        <pre className="min-h-9 max-h-20 overflow-auto rounded-md bg-[var(--color-bg-subtle)] px-3 py-2 text-sm leading-5 text-[var(--color-text-primary)]">
+        <pre className={settingsValueClass}>
           {values.join('\n')}
         </pre>
       ) : (
-        <div className="min-h-9 rounded-md bg-[var(--color-bg-subtle)] px-3 py-2 text-sm leading-5 text-[var(--color-text-primary)]">
+        <div className={settingsValueClass}>
           -
         </div>
       )}

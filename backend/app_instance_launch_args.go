@@ -124,7 +124,7 @@ func (a *App) markProfileStoppedLocked(profileId string, profile *BrowserProfile
 	profile.LastStopAt = time.Now().Format(time.RFC3339)
 	delete(a.browserMgr.BrowserProcesses, profileId)
 	a.clearDeferredStartTargets(profileId)
-	a.releaseProfileXrayBridge(profileId)
+	a.releaseProfileProxyBridge(profileId)
 	if a.launchServer != nil {
 		a.launchServer.ClearActiveProfile(profileId)
 	}
@@ -164,4 +164,28 @@ func (a *App) openBrowserWindowForRunningProfile(profile *BrowserProfile, extraL
 		}()
 	}
 	return nil
+}
+
+func (a *App) openBrowserTabForRunningProfile(profile *BrowserProfile, extraLaunchArgs []string, startURLs []string) error {
+	explicitTargets := normalizeNonEmptyStrings(startURLs)
+	targets := explicitTargets
+	if len(targets) == 0 {
+		targets = []string{"about:blank"}
+	}
+	if profile != nil && profile.DebugReady && profile.DebugPort > 0 {
+		for _, target := range targets {
+			if err := createBrowserStartTarget(profile.DebugPort, target); err != nil {
+				if len(explicitTargets) == 0 && len(normalizeNonEmptyStrings(extraLaunchArgs)) == 0 {
+					return nil
+				}
+				return err
+			}
+		}
+		return nil
+	}
+	err := a.openBrowserWindowForRunningProfile(profile, extraLaunchArgs, targets)
+	if err != nil && len(explicitTargets) == 0 && len(normalizeNonEmptyStrings(extraLaunchArgs)) == 0 {
+		return nil
+	}
+	return err
 }

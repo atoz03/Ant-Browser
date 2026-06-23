@@ -95,7 +95,7 @@ export function collectURLImportSources(list: BrowserProxy[]): URLImportSourceMe
   }
   return Array.from(sourceMap.values())
 }
-export function createExistingProxyIDPicker(oldSourceProxies: BrowserProxy[]) {
+export function createExistingProxyPicker(oldSourceProxies: BrowserProxy[]) {
   const exactMap = new Map<string, BrowserProxy[]>()
   const nameMap = new Map<string, BrowserProxy[]>()
 
@@ -111,21 +111,26 @@ export function createExistingProxyIDPicker(oldSourceProxies: BrowserProxy[]) {
     nameMap.set(nameKey, nameList)
   })
 
-  return (name: string, configText: string): string | null => {
+  return (name: string, configText: string): BrowserProxy | null => {
     const exactKey = `${name}|||${configText}`
     const exactList = exactMap.get(exactKey)
     if (exactList && exactList.length > 0) {
       const item = exactList.shift()
-      if (item?.proxyId) return item.proxyId
+      if (item?.proxyId) return item
     }
 
     const nameList = nameMap.get(name)
     if (nameList && nameList.length > 0) {
       const item = nameList.shift()
-      if (item?.proxyId) return item.proxyId
+      if (item?.proxyId) return item
     }
     return null
   }
+}
+
+export function createExistingProxyIDPicker(oldSourceProxies: BrowserProxy[]) {
+  const pickExisting = createExistingProxyPicker(oldSourceProxies)
+  return (name: string, configText: string): string | null => pickExisting(name, configText)?.proxyId || null
 }
 export function buildRefreshedSourceProxies(
   parsedProxies: ClashProxy[],
@@ -133,7 +138,7 @@ export function buildRefreshedSourceProxies(
   meta: URLImportSourceMeta,
   refreshedAt: string,
 ): BrowserProxy[] {
-  const pickExisting = createExistingProxyIDPicker(oldSourceProxies)
+  const pickExisting = createExistingProxyPicker(oldSourceProxies)
   const prefix = meta.sourceNamePrefix.trim()
   const sourceGroupName = meta.sourceGroupName.trim()
   const sourceDnsServers = meta.sourceDnsServers.trim()
@@ -141,12 +146,14 @@ export function buildRefreshedSourceProxies(
   return parsedProxies.map((proxy, index) => {
     const proxyName = resolveImportedProxyName(proxy, index, prefix)
     const proxyConfig = proxyToYaml(proxy)
-    const proxyId = pickExisting(proxyName, proxyConfig) || nextProxyID()
+    const existingProxy = pickExisting(proxyName, proxyConfig)
+    const proxyId = existingProxy?.proxyId || nextProxyID()
 
     return {
       proxyId,
       proxyName,
       proxyConfig,
+      preferredKernel: existingProxy?.preferredKernel || undefined,
       dnsServers: sourceDnsServers || undefined,
       groupName: sourceGroupName || undefined,
       sourceId: meta.sourceId,

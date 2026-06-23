@@ -21,6 +21,8 @@ func TestFetchIPHealthInfoReturnsSourceMetadataOnParseError(t *testing.T) {
 		[]config.BrowserProxy{{ProxyId: "proxy-1", ProxyConfig: "direct://"}},
 		nil,
 		nil,
+		nil,
+		config.BrowserConnectorXray,
 		&IPHealthConfig{
 			URL:    server.URL,
 			Source: "json",
