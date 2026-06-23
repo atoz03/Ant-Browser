@@ -34,7 +34,6 @@ import {
   resolveDualLaunchCodes,
   type AutomationCardPresentation,
   type ImportMode,
-  type LocalImportKind,
 } from "./AutomationPage.helpers";
 export function AutomationPage() {
   const navigate = useNavigate();
@@ -55,7 +54,6 @@ export function AutomationPage() {
     useState<AutomationScriptType>("playwright-cdp");
   const [createName, setCreateName] = useState("");
   const [importMode, setImportMode] = useState<ImportMode>("local");
-  const [localImportKind, setLocalImportKind] = useState<LocalImportKind>("file");
   const [gitURL, setGitURL] = useState("");
   const [gitRef, setGitRef] = useState("");
   const [gitScriptPath, setGitScriptPath] = useState("");
@@ -200,7 +198,6 @@ export function AutomationPage() {
 
   const resetImportModal = () => {
     setImportMode("local");
-    setLocalImportKind("file");
     setGitURL("");
     setGitRef("");
     setGitScriptPath("");
@@ -239,44 +236,52 @@ export function AutomationPage() {
     }
   };
 
+  const finishImport = (imported: AutomationScriptRecord[], failedCount = 0) => {
+    if (imported.length === 0) {
+      throw new Error("未导入任何脚本");
+    }
+
+    setScripts((current) => mergeImportedScripts(current, imported));
+    setImportOpen(false);
+    resetImportModal();
+    if (imported.length === 1 && failedCount === 0) {
+      toast.success("脚本已导入");
+      openScript(imported[0].id);
+      return;
+    }
+
+    toast.success(`已导入 ${imported.length} 个脚本`);
+    if (failedCount > 0) {
+      toast.warning(`${failedCount} 个脚本包导入失败`);
+    }
+  };
+
+  const handleLocalImport = async (kind: "file" | "directory") => {
+    setBusyAction("import");
+    try {
+      const imported = kind === "directory"
+        ? await importAutomationScriptFromLocalDirectory()
+        : await importAutomationScriptFromLocalFile();
+      finishImport([imported]);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "脚本导入失败";
+      toast.error(message);
+    } finally {
+      setBusyAction("none");
+    }
+  };
+
   const handleImport = async () => {
     setBusyAction("import");
     try {
-      let imported: AutomationScriptRecord[] = [];
-      let failedCount = 0;
-
       switch (importMode) {
-        case "local":
-          imported = [
-            localImportKind === "directory"
-              ? await importAutomationScriptFromLocalDirectory()
-              : await importAutomationScriptFromLocalFile(),
-          ];
-          break;
         case "git":
-          imported = [
+          finishImport([
             await importAutomationScriptFromGit(gitURL, gitRef, gitScriptPath),
-          ];
+          ]);
           break;
         default:
-          throw new Error("不支持的导入方式");
-      }
-
-      if (imported.length === 0) {
-        throw new Error("未导入任何脚本");
-      }
-
-      setScripts((current) => mergeImportedScripts(current, imported));
-      setImportOpen(false);
-      resetImportModal();
-      if (imported.length === 1 && failedCount === 0) {
-        toast.success("脚本已导入");
-        openScript(imported[0].id);
-      } else {
-        toast.success(`已导入 ${imported.length} 个脚本`);
-        if (failedCount > 0) {
-          toast.warning(`${failedCount} 个脚本包导入失败`);
-        }
+          throw new Error("请选择要导入的文件或文件夹");
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "脚本导入失败";
@@ -391,14 +396,14 @@ export function AutomationPage() {
         open={importOpen}
         busyAction={modalBusyAction}
         importMode={importMode}
-        localImportKind={localImportKind}
         gitURL={gitURL}
         gitRef={gitRef}
         gitScriptPath={gitScriptPath}
         onClose={closeImportModal}
         onImport={handleImport}
+        onImportLocalFile={() => handleLocalImport("file")}
+        onImportLocalDirectory={() => handleLocalImport("directory")}
         onImportModeChange={setImportMode}
-        onLocalImportKindChange={setLocalImportKind}
         onGitURLChange={setGitURL}
         onGitRefChange={setGitRef}
         onGitScriptPathChange={setGitScriptPath}

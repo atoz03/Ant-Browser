@@ -74,10 +74,17 @@ func (a *App) ensureAutomationScriptDefaults(store *automation.ScriptStore) erro
 			return a.markAutomationScriptDefaultsInitialized()
 		}
 
+		importedCount := 0
+		var lastImportErr error
 		for _, bundle := range defaults {
 			if _, err := store.ImportBundle(bundle); err != nil {
-				return err
+				lastImportErr = err
+				continue
 			}
+			importedCount++
+		}
+		if importedCount == 0 && lastImportErr != nil {
+			return lastImportErr
 		}
 		return a.markAutomationScriptDefaultsInitialized()
 	}
@@ -92,15 +99,11 @@ func (a *App) ensureAutomationScriptDefaults(store *automation.ScriptStore) erro
 			if existing, exists := existingByID[bundle.Record.ID]; exists {
 				if existing.Source.Type == "builtin" {
 					bundle.Record = mergeBuiltinDefaultScriptForMigration(existing, bundle.Record)
-					if _, err := store.ImportBundle(bundle); err != nil {
-						return err
-					}
+					_, _ = store.ImportBundle(bundle)
 				}
 				continue
 			}
-			if _, err := store.ImportBundle(bundle); err != nil {
-				return err
-			}
+			_, _ = store.ImportBundle(bundle)
 		}
 	}
 	return a.markAutomationScriptDefaultsInitialized()

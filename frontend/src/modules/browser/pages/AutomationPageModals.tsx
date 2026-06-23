@@ -1,6 +1,6 @@
 import { Button, FormItem, Input, Modal, Select } from "../../../shared/components";
 import { AUTOMATION_SCRIPT_TYPE_OPTIONS, type AutomationScriptType } from "../automationScripts";
-import type { ImportMode, LocalImportKind } from "./AutomationPage.helpers";
+import type { ImportMode } from "./AutomationPage.helpers";
 
 interface CreateAutomationScriptModalProps {
   open: boolean;
@@ -73,14 +73,14 @@ interface ImportAutomationScriptModalProps {
   open: boolean;
   busyAction: "none" | "create" | "import";
   importMode: ImportMode;
-  localImportKind: LocalImportKind;
   gitURL: string;
   gitRef: string;
   gitScriptPath: string;
   onClose: () => void;
   onImport: () => Promise<void>;
+  onImportLocalFile: () => Promise<void>;
+  onImportLocalDirectory: () => Promise<void>;
   onImportModeChange: (value: ImportMode) => void;
-  onLocalImportKindChange: (value: LocalImportKind) => void;
   onGitURLChange: (value: string) => void;
   onGitRefChange: (value: string) => void;
   onGitScriptPathChange: (value: string) => void;
@@ -90,14 +90,14 @@ export function ImportAutomationScriptModal({
   open,
   busyAction,
   importMode,
-  localImportKind,
   gitURL,
   gitRef,
   gitScriptPath,
   onClose,
   onImport,
+  onImportLocalFile,
+  onImportLocalDirectory,
   onImportModeChange,
-  onLocalImportKindChange,
   onGitURLChange,
   onGitRefChange,
   onGitScriptPathChange,
@@ -117,12 +117,14 @@ export function ImportAutomationScriptModal({
             >
               取消
             </Button>
-            <Button
-              onClick={() => void onImport()}
-              loading={busyAction === "import"}
-            >
-              导入
-            </Button>
+            {importMode === "git" ? (
+              <Button
+                onClick={() => void onImport()}
+                loading={busyAction === "import"}
+              >
+                导入
+              </Button>
+            ) : null}
           </>
         }
       >
@@ -151,28 +153,21 @@ export function ImportAutomationScriptModal({
           </div>
 
           {importMode === "local" ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: "file", label: "ZIP / 文件" },
-                  { value: "directory", label: "文件夹" },
-                ].map((item) => (
-                  <Button
-                    key={item.value}
-                    size="sm"
-                    variant={localImportKind === item.value ? "primary" : "secondary"}
-                    onClick={() => onLocalImportKindChange(item.value as LocalImportKind)}
-                    disabled={busyAction !== "none"}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
-                {localImportKind === "directory"
-                  ? "点击导入后选择脚本文件夹，适合一整套本地脚本目录。"
-                  : "点击导入后选择本地文件，支持标准 ZIP 脚本包、JSON 模板和单文件脚本。"}
-              </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Button
+                variant="secondary"
+                onClick={() => void onImportLocalFile()}
+                loading={busyAction === "import"}
+              >
+                选择 ZIP / 文件
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void onImportLocalDirectory()}
+                loading={busyAction === "import"}
+              >
+                选择文件夹
+              </Button>
             </div>
           ) : null}
 

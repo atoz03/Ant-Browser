@@ -17,8 +17,8 @@ func TestAutomationScriptListSeedsDefaultScriptsOnFreshApp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AutomationScriptList returned error: %v", err)
 	}
-	if len(items) != 3 {
-		t.Fatalf("expected three default scripts, got %d", len(items))
+	if len(items) != 4 {
+		t.Fatalf("expected four default scripts, got %d", len(items))
 	}
 
 	byID := make(map[string]automation.ScriptRecord, len(items))
@@ -29,6 +29,7 @@ func TestAutomationScriptListSeedsDefaultScriptsOnFreshApp(t *testing.T) {
 	expectedNames := map[string]string{
 		"dual-instance-runtime-switch": "双实例启动与 Runtime 切换",
 		"news-query-txt":               "查询新闻并写 TXT",
+		"proton-mail-first-message":    "Proton 邮件搜索并读取最新邮件",
 		"web-image-generate-download":  "网页图片生成并下载",
 	}
 
@@ -105,13 +106,14 @@ func TestAutomationScriptListAddsMissingBuiltinWhenLegacyMarkerExists(t *testing
 	if err != nil {
 		t.Fatalf("AutomationScriptList returned error: %v", err)
 	}
-	if len(items) != 4 {
-		t.Fatalf("expected custom script plus three defaults, got %d items", len(items))
+	if len(items) != 5 {
+		t.Fatalf("expected custom script plus four defaults, got %d items", len(items))
 	}
 
 	expectedDefaultIDs := []string{
 		automation.DualInstanceRuntimeScriptID,
 		automation.NewsQueryTXTScriptID,
+		automation.ProtonMailFirstMessageID,
 		automation.WebImageGenerateScriptID,
 	}
 	for _, scriptID := range expectedDefaultIDs {
