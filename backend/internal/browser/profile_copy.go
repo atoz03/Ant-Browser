@@ -64,11 +64,6 @@ func (m *Manager) copyProfile(profileId string, newName string, fingerprintResol
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	if m.Config.App.MaxProfileLimit > 0 && len(m.Profiles) >= m.Config.App.MaxProfileLimit {
-		log.Error("复制实例失败: 达到数量上限", logger.F("limit", m.Config.App.MaxProfileLimit))
-		return nil, newProfileLimitExceededError(m.Config.App.MaxProfileLimit, "复制实例")
-	}
-
 	src, exists := m.Profiles[profileId]
 	if !exists {
 		log.Error("源实例不存在", logger.F("profile_id", profileId))

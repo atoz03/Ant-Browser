@@ -240,14 +240,6 @@ func (a *App) importProfilePackageFromPath(zipPath string) (ProfilePackageImport
 	}
 
 	a.browserMgr.InitData()
-	if a.config.App.MaxProfileLimit > 0 {
-		a.browserMgr.Mutex.Lock()
-		currentCount := len(a.browserMgr.Profiles)
-		a.browserMgr.Mutex.Unlock()
-		if currentCount+len(profiles) > a.config.App.MaxProfileLimit {
-			return ProfilePackageImportResult{}, fmt.Errorf("实例数量已达上限 (%d个)，无法导入 %d 个实例", a.config.App.MaxProfileLimit, len(profiles))
-		}
-	}
 	now := time.Now().Format(time.RFC3339)
 	mappings := make(map[string]string, len(profiles))
 	prepared := make([]browser.Profile, 0, len(profiles))

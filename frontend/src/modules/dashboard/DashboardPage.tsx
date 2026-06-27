@@ -1,11 +1,9 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import { Monitor, Play, Shield, Cpu, ArrowRight, ExternalLink, Globe, Settings } from 'lucide-react'
+import { Monitor, Play, Shield, Cpu, ArrowRight, Globe, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Card, Button, toast } from '../../shared/components'
-import { fetchDashboardStats, redeemGithubStar, reloadConfig } from './api'
+import { Card } from '../../shared/components'
+import { fetchDashboardStats, reloadConfig } from './api'
 import type { DashboardStats } from './types'
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
-import { PROJECT_GITHUB_URL } from '../../config/links'
 
 interface StatCardProps {
   title: string
@@ -42,11 +40,9 @@ export function DashboardPage() {
     proxyCount: 0,
     coreCount: 0,
     memUsedMB: 0,
-    maxProfileLimit: 20,
     appVersion: 'unknown',
   })
   const [loading, setLoading] = useState(true)
-  const [redeeming, setRedeeming] = useState(false)
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -83,26 +79,7 @@ export function DashboardPage() {
     }
   }
 
-  const handleClaimStarGift = async () => {
-    setRedeeming(true)
-    const starRes = await redeemGithubStar()
-    setRedeeming(false)
-    if (starRes.success) {
-      toast.success('感谢您的支持！已额外赠送 50 个永久额度！')
-      load({ reloadFirst: true })
-    } else {
-      toast.error(starRes.message || '领取失败')
-    }
-  }
-
-  const handleOpenGithubStarGift = async () => {
-    BrowserOpenURL(PROJECT_GITHUB_URL)
-    await handleClaimStarGift()
-  }
-
   const v = (n: number) => loading ? '-' : n.toString()
-  const capacityText = loading ? '-' : `${stats.totalInstances} / ${stats.maxProfileLimit}`
-  const capacityFull = !loading && stats.totalInstances >= stats.maxProfileLimit
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -181,33 +158,6 @@ export function DashboardPage() {
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">{item.value}</span>
               </div>
             ))}
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-[var(--color-border-muted)]">
-            <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">扩容系统</h3>
-            <div className="rounded-xl border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-xs text-[var(--color-text-muted)]">当前容量</p>
-                  <p className={`mt-1 text-2xl font-semibold ${capacityFull ? 'text-red-500' : 'text-[var(--color-accent)]'}`}>
-                    {capacityText}
-                  </p>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={handleOpenGithubStarGift}
-                  loading={redeeming}
-                  className="shrink-0 shadow-sm"
-                  title="打开 GitHub 并领取扩容"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Star 扩容 +50
-                </Button>
-              </div>
-              <p className="mt-3 text-xs font-medium text-[var(--color-text-secondary)]">
-                点亮 GitHub Star 后领取 50 个永久额度
-              </p>
-            </div>
           </div>
         </Card>
       </div>

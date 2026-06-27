@@ -90,3 +90,12 @@ func (a *App) BrowserCoreDownload(coreName, url, proxyConfig string) error {
 	go a.browserMgr.DownloadAndExtractCore(a.ctx, coreName, url, proxyConfig)
 	return nil
 }
+
+// BrowserCoreRedownload 重新下载并替换指定内核目录
+func (a *App) BrowserCoreRedownload(coreId, url, proxyConfig string) error {
+	if a.ctx == nil {
+		return fmt.Errorf("app context is nil")
+	}
+	go a.browserMgr.RedownloadCore(a.ctx, coreId, url, proxyConfig)
+	return nil
+}

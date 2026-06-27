@@ -1,8 +1,5 @@
 ﻿import { useState } from 'react'
 import { toast } from '../../../../shared/components'
-import { PROJECT_GITHUB_URL } from '../../../../config/links'
-import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime'
-import { fetchDashboardStats, redeemGithubStar, reloadConfig } from '../../../dashboard/api'
 import type { BrowserCore, BrowserCoreInput, BrowserSettings } from '../../types'
 import {
   deleteBrowserCore,
@@ -40,10 +37,6 @@ export function useBrowserListSettings() {
   const [coreValidation, setCoreValidation] = useState<{ valid: boolean; message: string } | null>(null)
   const [savingCore, setSavingCore] = useState(false)
 
-  const [expandModalOpen, setExpandModalOpen] = useState(false)
-  const [redeeming, setRedeeming] = useState(false)
-  const [maxProfileLimit, setMaxProfileLimit] = useState(20)
-
   const loadSettings = async () => {
     const data = await fetchBrowserSettings()
     setSettings(data)
@@ -54,16 +47,6 @@ export function useBrowserListSettings() {
 
   const loadCores = async () => {
     setCores(await fetchBrowserCores())
-  }
-
-  const loadQuota = async () => {
-    try {
-      await reloadConfig()
-      const stats = await fetchDashboardStats()
-      setMaxProfileLimit(stats.maxProfileLimit || 20)
-    } catch {
-      // ignore
-    }
   }
 
   const handleOpenSettings = async () => {
@@ -142,23 +125,6 @@ export function useBrowserListSettings() {
     loadCores()
   }
 
-  const handleClaimStarGift = async () => {
-    setRedeeming(true)
-    const starRes = await redeemGithubStar()
-    setRedeeming(false)
-    if (starRes.success) {
-      toast.success('感谢您的支持！已额外赠送 50 个永久额度！')
-      loadQuota()
-    } else {
-      toast.error(starRes.message || '领取失败')
-    }
-  }
-
-  const handleOpenGithubStarGift = async () => {
-    BrowserOpenURL(PROJECT_GITHUB_URL)
-    await handleClaimStarGift()
-  }
-
   return {
     settingsModalOpen,
     setSettingsModalOpen,
@@ -179,12 +145,7 @@ export function useBrowserListSettings() {
     coreValidation,
     setCoreValidation,
     savingCore,
-    expandModalOpen,
-    setExpandModalOpen,
-    redeeming,
-    maxProfileLimit,
     loadCores,
-    loadQuota,
     handleOpenSettings,
     handleSaveSettings,
     handleOpenCoreModal,
@@ -192,6 +153,5 @@ export function useBrowserListSettings() {
     handleSaveCore,
     handleDeleteCore,
     handleSetDefaultCore,
-    handleOpenGithubStarGift,
   }
 }

@@ -13,10 +13,6 @@ const ProfilePage = lazyNamed(
   () => import("../modules/profile/ProfilePage"),
   "ProfilePage",
 );
-const AdminKeygenPage = lazyNamed(
-  () => import("../modules/profile/AdminKeygenPage"),
-  "AdminKeygenPage",
-);
 const ChartsPage = lazyNamed(
   () => import("../modules/charts/ChartsPage"),
   "ChartsPage",
@@ -81,7 +77,6 @@ export function AppRoutes() {
       <Route path="/charts" element={<ChartsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/profile" element={<ProfilePage />} />
-      <Route path="/admin/keygen" element={<AdminKeygenPage />} />
       <Route path="/browser/list" element={<BrowserListPage />} />
       <Route path="/browser/detail/:id" element={<BrowserDetailPage />} />
       <Route path="/browser/edit/:id" element={<BrowserEditPage />} />

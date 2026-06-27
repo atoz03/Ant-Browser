@@ -26,10 +26,12 @@ export interface CoreEditForm {
 }
 
 export interface CoreDownloadForm {
+  coreId?: string
   name: string
   url: string
   proxyMode: string
   proxyId: string
+  mode?: 'download' | 'redownload'
 }
 
 export interface CoreDownloadProgress {

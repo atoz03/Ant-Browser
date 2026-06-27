@@ -11,7 +11,6 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Badge, Button, Card } from '../../shared/components'
 import { createDefaultProfilePageData, loadProfilePageData } from './api'
 import type { IconKey, ProfilePageData } from './types'
@@ -34,8 +33,6 @@ const CHANNEL_ICON_CLASS: Partial<Record<IconKey, string>> = {
 }
 
 export function ProfilePage() {
-  const navigate = useNavigate()
-  const [clickCount, setClickCount] = useState(0)
   const [pageData, setPageData] = useState<ProfilePageData>(() => createDefaultProfilePageData())
 
   useEffect(() => {
@@ -53,15 +50,6 @@ export function ProfilePage() {
       active = false
     }
   }, [])
-
-  const handleAuthorClick = () => {
-    const newCount = clickCount + 1
-    setClickCount(newCount)
-    if (newCount >= 5) {
-      navigate('/admin/keygen')
-      setClickCount(0)
-    }
-  }
 
   const openExternal = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer')
@@ -92,9 +80,7 @@ export function ProfilePage() {
             <div className="min-w-0 space-y-4">
               <div className="space-y-1">
                 <h1
-                  className="cursor-pointer select-none text-[34px] font-bold leading-none tracking-tight text-[var(--color-text-primary)] sm:text-[38px]"
-                  onClick={handleAuthorClick}
-                  title={clickCount > 0 ? `再点 ${5 - clickCount} 次进入开发者模式` : ''}
+                  className="text-[34px] font-bold leading-none tracking-tight text-[var(--color-text-primary)] sm:text-[38px]"
                 >
                   {authorInfo.name}
                 </h1>

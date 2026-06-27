@@ -4,11 +4,10 @@ import { fetchBrowserProfiles, fetchBrowserProxies, fetchGroups } from '../../ap
 import { EventsOn } from '../../../../wailsjs/runtime/runtime'
 
 interface UseBrowserListDataOptions {
-  loadQuota: () => void
   loadCores: () => void
 }
 
-export function useBrowserListData({ loadQuota, loadCores }: UseBrowserListDataOptions) {
+export function useBrowserListData({ loadCores }: UseBrowserListDataOptions) {
   const [profiles, setProfiles] = useState<BrowserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [proxies, setProxies] = useState<BrowserProxy[]>([])
@@ -103,7 +102,6 @@ export function useBrowserListData({ loadQuota, loadCores }: UseBrowserListDataO
   useEffect(() => {
     void loadProfiles()
     loadGroups()
-    loadQuota()
     fetchBrowserProxies().then(setProxies)
     loadCores()
 

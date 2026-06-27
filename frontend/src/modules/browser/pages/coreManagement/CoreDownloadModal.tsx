@@ -26,6 +26,7 @@ export function CoreDownloadModal({
   onStart,
 }: CoreDownloadModalProps) {
   const downloading = progress !== null && progress.phase !== 'error'
+  const isRedownload = form.mode === 'redownload'
 
   const handleClose = () => {
     if (progress && progress.phase !== 'done' && progress.phase !== 'error') {
@@ -40,12 +41,12 @@ export function CoreDownloadModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="下载内核"
+      title={isRedownload ? '重新下载内核' : '下载内核'}
       width="480px"
       footer={
         <>
           <Button variant="secondary" onClick={handleClose} disabled={downloading}>取消</Button>
-          <Button onClick={onStart} loading={downloading}>开始下载</Button>
+          <Button onClick={onStart} loading={downloading}>{isRedownload ? '开始重新下载' : '开始下载'}</Button>
         </>
       }
     >
@@ -55,10 +56,19 @@ export function CoreDownloadModal({
             value={form.name}
             onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
             placeholder="例如: chrome-139"
-            disabled={progress !== null}
+            disabled={progress !== null || isRedownload}
           />
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">该名称将同时作为数据存放的子文件夹名。</p>
+          {!isRedownload && (
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">该名称将同时作为数据存放的子文件夹名。</p>
+          )}
         </FormItem>
+
+        {isRedownload && (
+          <div className="rounded-lg border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-3 text-xs leading-5 text-[var(--color-warning)]">
+            重新下载会在校验新压缩包可用后替换当前内核目录；替换失败会自动恢复旧目录。正在使用该内核的实例请先停止。
+          </div>
+        )}
+
         <FormItem label="下载地址 (ZIP)" required>
           <Input
             value={form.url}

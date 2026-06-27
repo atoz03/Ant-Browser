@@ -1,13 +1,6 @@
 package config
 
-import "strings"
-
 const (
-	DefaultMaxProfileLimit          = 20
-	StandardCDKeyProfileBonus       = 10
-	GithubStarRewardKey             = "GITHUB_STAR_REWARD"
-	GithubStarProfileBonus          = 50
-	GithubStarProfileTotal          = DefaultMaxProfileLimit + GithubStarProfileBonus
 	DefaultLaunchServerPort         = 19876
 	DefaultLaunchServerAPIKeyHeader = "X-Ant-Api-Key"
 	DefaultAutomationInstallPolicy  = "on_demand"
@@ -21,36 +14,6 @@ const (
 	AutomationNodeSourceSystem  = "system"
 	AutomationNodeSourceBundled = "bundled"
 )
-
-// RewardForUsedKey 返回指定兑换记录对应的永久额度奖励。
-func RewardForUsedKey(key string) int {
-	normalized := strings.ToUpper(strings.TrimSpace(key))
-	if normalized == "" {
-		return 0
-	}
-	if normalized == GithubStarRewardKey {
-		return GithubStarProfileBonus
-	}
-	return StandardCDKeyProfileBonus
-}
-
-// MinimumProfileLimitForUsedKeys 根据兑换记录计算最低应得实例额度。
-func MinimumProfileLimitForUsedKeys(keys []string) int {
-	limit := DefaultMaxProfileLimit
-	seen := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		normalized := strings.ToUpper(strings.TrimSpace(key))
-		if normalized == "" {
-			continue
-		}
-		if _, exists := seen[normalized]; exists {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		limit += RewardForUsedKey(normalized)
-	}
-	return limit
-}
 
 // LaunchServerConfig Launch HTTP 服务配置
 type LaunchServerConfig struct {
@@ -117,10 +80,8 @@ type SQLiteConfig struct {
 }
 
 type AppConfig struct {
-	Name            string       `yaml:"name"`
-	Window          WindowConfig `yaml:"window"`
-	MaxProfileLimit int          `yaml:"max_profile_limit"`
-	UsedCDKeys      []string     `yaml:"used_cd_keys"`
+	Name   string       `yaml:"name"`
+	Window WindowConfig `yaml:"window"`
 }
 
 type WindowConfig struct {

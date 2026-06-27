@@ -23,7 +23,6 @@ func (a *App) GetDashboardStats() map[string]interface{} {
 		"proxyCount":       stats.ProxyCount,
 		"coreCount":        stats.CoreCount,
 		"memUsedMB":        int(memUsedMB),
-		"maxProfileLimit":  stats.MaxProfileLimit,
 		"appVersion":       a.appVersion(),
 	}
 }

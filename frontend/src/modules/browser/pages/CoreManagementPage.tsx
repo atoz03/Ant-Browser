@@ -3,7 +3,7 @@ import { FolderOpen } from 'lucide-react'
 import { Badge, Button, Card, ConfirmModal, Table, toast } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
 import type { BrowserCore, BrowserCoreInput, BrowserCoreValidateResult, BrowserSettings, BrowserCoreExtended, BrowserProxy } from '../types'
-import { fetchBrowserCores, saveBrowserCore, deleteBrowserCore, setDefaultBrowserCore, validateBrowserCorePath, openCorePath, fetchBrowserSettings, saveBrowserSettings, fetchCoreExtendedInfo, scanBrowserCores, BrowserCoreDownload, fetchBrowserProxies } from '../api'
+import { fetchBrowserCores, saveBrowserCore, deleteBrowserCore, setDefaultBrowserCore, validateBrowserCorePath, openCorePath, fetchBrowserSettings, saveBrowserSettings, fetchCoreExtendedInfo, scanBrowserCores, BrowserCoreDownload, fetchBrowserProxies, redownloadBrowserCore } from '../api'
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime'
 import { CoreDownloadModal } from './coreManagement/CoreDownloadModal'
 import { CoreEditModal } from './coreManagement/CoreEditModal'
@@ -56,7 +56,7 @@ export function CoreManagementPage() {
 
   // 内核下载
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
-  const [downloadForm, setDownloadForm] = useState<CoreDownloadForm>({ name: '', url: '', proxyMode: 'system', proxyId: '' })
+  const [downloadForm, setDownloadForm] = useState<CoreDownloadForm>({ name: '', url: '', proxyMode: 'system', proxyId: '', mode: 'download' })
   const [downloadProgress, setDownloadProgress] = useState<CoreDownloadProgress | null>(null)
   const [proxies, setProxies] = useState<BrowserProxy[]>([])
 
@@ -195,6 +195,9 @@ export function CoreManagementPage() {
           <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleEdit(record) }}>
             编辑
           </Button>
+          <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleRedownload(record) }}>
+            重新下载
+          </Button>
           {!record.isDefault && (
             <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleSetDefault(record.coreId) }}>
               设为默认
@@ -248,6 +251,18 @@ export function CoreManagementPage() {
       setPathValidResult({ valid: record.pathValid, message: record.pathMessage })
       setEditModalOpen(true)
     }
+  }
+
+  const handleOpenDownload = () => {
+    setDownloadForm({ name: '', url: '', proxyMode: 'system', proxyId: '', mode: 'download' })
+    setDownloadProgress(null)
+    setDownloadModalOpen(true)
+  }
+
+  const handleRedownload = (record: CoreDisplayInfo) => {
+    setDownloadForm({ coreId: record.coreId, name: record.coreName, url: '', proxyMode: 'system', proxyId: '', mode: 'redownload' })
+    setDownloadProgress(null)
+    setDownloadModalOpen(true)
   }
 
   // 保存内核
@@ -319,8 +334,8 @@ export function CoreManagementPage() {
       toast.error('请输入名称和下载地址')
       return
     }
-    if (cores.some(c => c.coreName.toLowerCase() === downloadForm.name.trim().toLowerCase())) {
-      toast.error('该内核名称已存在')
+    if (downloadForm.mode === 'redownload' && !downloadForm.coreId) {
+      toast.error('缺少内核ID')
       return
     }
     setDownloadProgress({ phase: 'starting', progress: 0, message: '准备下载...' })
@@ -339,7 +354,11 @@ export function CoreManagementPage() {
         }
       }
 
-      await BrowserCoreDownload(downloadForm.name.trim(), downloadForm.url.trim(), targetProxy)
+      if (downloadForm.mode === 'redownload') {
+        await redownloadBrowserCore(downloadForm.coreId || '', downloadForm.url.trim(), targetProxy)
+      } else {
+        await BrowserCoreDownload(downloadForm.name.trim(), downloadForm.url.trim(), targetProxy)
+      }
     } catch (err: any) {
       toast.error(err.message || '内部启动下载失败')
       setDownloadProgress(null)
@@ -396,7 +415,7 @@ export function CoreManagementPage() {
           <p className="text-sm text-[var(--color-text-muted)] mt-1">管理 Chrome 内核版本和全局设置</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setDownloadModalOpen(true)}>下载内核</Button>
+          <Button size="sm" variant="secondary" onClick={handleOpenDownload}>下载内核</Button>
           <Button size="sm" variant="secondary" onClick={handleScan} loading={scanning}>扫描内核</Button>
           <Button size="sm" onClick={handleAdd}>新增内核</Button>
         </div>

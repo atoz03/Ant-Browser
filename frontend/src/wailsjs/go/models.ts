@@ -1,4 +1,4 @@
-export namespace automation {
+﻿export namespace automation {
 
 	export class ScriptPublicAPIVariable {
 	    name: string;
@@ -467,20 +467,42 @@ export namespace backend {
 	        this.sameSite = source["sameSite"];
 	    }
 	}
-	export class LicenseStatus {
-	    maxLimit: number;
-	    usedCount: number;
-	    usedKeys: string[];
+	export class ProfilePackageExportResult {
+	    cancelled: boolean;
+	    zipPath: string;
+	    profileCount: number;
+	    fileCount: number;
+	    message: string;
 
 	    static createFrom(source: any = {}) {
-	        return new LicenseStatus(source);
+	        return new ProfilePackageExportResult(source);
 	    }
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.maxLimit = source["maxLimit"];
-	        this.usedCount = source["usedCount"];
-	        this.usedKeys = source["usedKeys"];
+	        this.cancelled = source["cancelled"];
+	        this.zipPath = source["zipPath"];
+	        this.profileCount = source["profileCount"];
+	        this.fileCount = source["fileCount"];
+	        this.message = source["message"];
+	    }
+	}
+	export class ProfilePackageImportResult {
+	    cancelled: boolean;
+	    importedCount: number;
+	    profileMappings: Record<string, string>;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ProfilePackageImportResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cancelled = source["cancelled"];
+	        this.importedCount = source["importedCount"];
+	        this.profileMappings = source["profileMappings"];
+	        this.message = source["message"];
 	    }
 	}
 	export class ProxyBridgeWarmupResult {

@@ -66,8 +66,6 @@ func (a *App) backupApplyIncomingConfig(incoming *config.Config, resetFirst bool
 		target = backupMergeConfig(current, incoming)
 	}
 	target.Database = current.Database
-	target.App.MaxProfileLimit = current.App.MaxProfileLimit
-	target.App.UsedCDKeys = append([]string{}, current.App.UsedCDKeys...)
 
 	if err := target.Save(a.resolveAppPath("config.yaml")); err != nil {
 		return fmt.Errorf("保存导入配置失败: %w", err)

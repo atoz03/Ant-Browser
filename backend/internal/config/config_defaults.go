@@ -65,15 +65,6 @@ func normalizeConfig(config *Config) {
 	if config.App.Window.MinHeight <= 0 {
 		config.App.Window.MinHeight = defaultConfig.App.Window.MinHeight
 	}
-	if config.App.UsedCDKeys == nil {
-		config.App.UsedCDKeys = []string{}
-	}
-
-	expectedLimit := MinimumProfileLimitForUsedKeys(config.App.UsedCDKeys)
-	if config.App.MaxProfileLimit < expectedLimit {
-		config.App.MaxProfileLimit = expectedLimit
-	}
-
 	if config.Runtime.MaxMemoryMB <= 0 {
 		config.Runtime.MaxMemoryMB = defaultConfig.Runtime.MaxMemoryMB
 	}
@@ -257,8 +248,6 @@ func DefaultConfig() *Config {
 				MinWidth:  1200,
 				MinHeight: 700,
 			},
-			MaxProfileLimit: DefaultMaxProfileLimit,
-			UsedCDKeys:      []string{},
 		},
 		Runtime: RuntimeConfig{
 			MaxMemoryMB: 0,

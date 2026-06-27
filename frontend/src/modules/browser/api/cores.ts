@@ -80,6 +80,15 @@ export async function BrowserCoreDownload(coreName: string, url: string, proxyCo
   return true
 }
 
+export async function redownloadBrowserCore(coreId: string, url: string, proxyConfig?: string): Promise<boolean> {
+  const bindings: any = await getBindings()
+  if (bindings?.BrowserCoreRedownload) {
+    await bindings.BrowserCoreRedownload(coreId, url, proxyConfig || '')
+    return true
+  }
+  return true
+}
+
 export async function openCorePath(corePath: string): Promise<boolean> {
   const bindings: any = await getBindings()
   if (bindings?.OpenCorePath) {
