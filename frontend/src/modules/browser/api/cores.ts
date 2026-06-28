@@ -71,6 +71,14 @@ export async function scanBrowserCores(): Promise<BrowserCore[]> {
   return getMockCores()
 }
 
+export async function importLocalBrowserCore(): Promise<BrowserCore | null> {
+  const bindings: any = await getBindings()
+  if (bindings?.BrowserCoreImportLocal) {
+    return (await bindings.BrowserCoreImportLocal()) || null
+  }
+  return null
+}
+
 export async function BrowserCoreDownload(coreName: string, url: string, proxyConfig?: string): Promise<boolean> {
   const bindings: any = await getBindings()
   if (bindings?.BrowserCoreDownload) {

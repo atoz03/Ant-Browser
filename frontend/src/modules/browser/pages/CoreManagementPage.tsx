@@ -3,7 +3,7 @@ import { FolderOpen } from 'lucide-react'
 import { Badge, Button, Card, ConfirmModal, Table, toast } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
 import type { BrowserCore, BrowserCoreInput, BrowserCoreValidateResult, BrowserSettings, BrowserCoreExtended, BrowserProxy } from '../types'
-import { fetchBrowserCores, saveBrowserCore, deleteBrowserCore, setDefaultBrowserCore, validateBrowserCorePath, openCorePath, fetchBrowserSettings, saveBrowserSettings, fetchCoreExtendedInfo, scanBrowserCores, BrowserCoreDownload, fetchBrowserProxies, redownloadBrowserCore } from '../api'
+import { fetchBrowserCores, saveBrowserCore, deleteBrowserCore, setDefaultBrowserCore, validateBrowserCorePath, openCorePath, fetchBrowserSettings, saveBrowserSettings, fetchCoreExtendedInfo, scanBrowserCores, importLocalBrowserCore, BrowserCoreDownload, fetchBrowserProxies, redownloadBrowserCore } from '../api'
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime'
 import { CoreDownloadModal } from './coreManagement/CoreDownloadModal'
 import { CoreEditModal } from './coreManagement/CoreEditModal'
@@ -16,6 +16,7 @@ export function CoreManagementPage() {
   const [displayList, setDisplayList] = useState<CoreDisplayInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   // 全局设置状态
   const [settings, setSettings] = useState<BrowserSettings>({
@@ -234,6 +235,22 @@ export function CoreManagementPage() {
     }
   }
 
+  const handleImportLocal = async () => {
+    setImporting(true)
+    try {
+      const imported = await importLocalBrowserCore()
+      if (!imported) {
+        return
+      }
+      await loadData()
+      toast.success(`已导入：${imported.coreName}`)
+    } catch (error: any) {
+      toast.error(error?.message || '导入失败')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   // 新增内核
   const handleAdd = () => {
     setEditingCore(null)
@@ -416,6 +433,7 @@ export function CoreManagementPage() {
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={handleOpenDownload}>下载内核</Button>
+          <Button size="sm" variant="secondary" onClick={handleImportLocal} loading={importing}>导入本地</Button>
           <Button size="sm" variant="secondary" onClick={handleScan} loading={scanning}>扫描内核</Button>
           <Button size="sm" onClick={handleAdd}>新增内核</Button>
         </div>

@@ -1,10 +1,14 @@
 package backend
 
 import (
+	"ant-chrome/backend/internal/browser"
 	"ant-chrome/backend/internal/config"
 	"ant-chrome/backend/internal/logger"
 	"fmt"
+	"path/filepath"
 	"strings"
+
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func (a *App) GetBrowserSettings() BrowserSettings {
@@ -80,6 +84,81 @@ func (a *App) BrowserCoreExtendedInfo() []BrowserCoreExtendedInfo {
 func (a *App) BrowserCoreScan() []BrowserCore {
 	a.autoDetectCores()
 	return a.browserMgr.ListCores()
+}
+
+// BrowserCoreImportLocal 选择一个已解压内核目录并直接注册，不下载、不复制文件。
+func (a *App) BrowserCoreImportLocal() (*BrowserCore, error) {
+	if a.ctx == nil {
+		return nil, fmt.Errorf("app context is nil")
+	}
+	if a.browserMgr == nil {
+		return nil, fmt.Errorf("browser manager is nil")
+	}
+
+	selectedDir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "选择已解压的 Chrome 内核目录",
+	})
+	if err != nil {
+		return nil, err
+	}
+	selectedDir = strings.TrimSpace(selectedDir)
+	if selectedDir == "" {
+		return nil, nil
+	}
+
+	absDir, err := filepath.Abs(selectedDir)
+	if err != nil {
+		return nil, err
+	}
+	if _, _, ok := browser.FindCoreExecutable(absDir); !ok {
+		return nil, fmt.Errorf("所选目录不是有效内核目录：未找到浏览器可执行文件（候选：%s）", strings.Join(browser.CoreExecutableCandidates(), ", "))
+	}
+
+	corePath := a.relativeCorePathIfPossible(absDir)
+	coreName := strings.TrimSpace(filepath.Base(absDir))
+	if coreName == "" || coreName == "." || coreName == string(filepath.Separator) {
+		coreName = "本地内核"
+	}
+
+	for _, existing := range a.browserMgr.ListCores() {
+		if normalizeCorePathForCompare(existing.CorePath) == normalizeCorePathForCompare(corePath) {
+			return &existing, nil
+		}
+	}
+
+	input := browser.CoreInput{
+		CoreName:  coreName,
+		CorePath:  corePath,
+		IsDefault: len(a.browserMgr.ListCores()) == 0,
+	}
+	if err := a.browserMgr.SaveCore(input); err != nil {
+		return nil, err
+	}
+
+	for _, saved := range a.browserMgr.ListCores() {
+		if normalizeCorePathForCompare(saved.CorePath) == normalizeCorePathForCompare(corePath) {
+			return &saved, nil
+		}
+	}
+	return nil, fmt.Errorf("本地内核已保存但未能读取结果")
+}
+
+func (a *App) relativeCorePathIfPossible(absDir string) string {
+	for _, root := range []string{a.appRootAbs(), a.appStateRootAbs()} {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		rootAbs, err := filepath.Abs(root)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(rootAbs, absDir)
+		if err == nil && rel != "." && rel != ".." && !strings.HasPrefix(filepath.ToSlash(rel), "../") && !filepath.IsAbs(rel) {
+			return filepath.ToSlash(rel)
+		}
+	}
+	return absDir
 }
 
 // BrowserCoreDownload 在线下载并自动解压配置内核
