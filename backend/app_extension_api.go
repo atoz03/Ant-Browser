@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -17,6 +18,7 @@ import (
 type BrowserExtension = browser.Extension
 type BrowserExtensionLookupResult = browser.ExtensionLookupResult
 type BrowserProfileExtensionSettings = browser.ProfileExtensionSettings
+type BrowserExtensionProfileScope = browser.ExtensionProfileScope
 
 type BrowserExtensionWebStoreRequest struct {
 	Query       string `json:"query"`
@@ -43,7 +45,14 @@ func (a *App) BrowserExtensionList() ([]BrowserExtension, error) {
 	if a.browserMgr == nil || a.browserMgr.ExtensionDAO == nil {
 		return []BrowserExtension{}, nil
 	}
-	return a.browserMgr.ExtensionDAO.List()
+	items, err := a.browserMgr.ListExtensions()
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		items[index] = a.populateExtensionScope(items[index])
+	}
+	return items, nil
 }
 
 func (a *App) BrowserExtensionLookup(query string) (BrowserExtensionLookupResult, error) {
@@ -281,7 +290,32 @@ func (a *App) BrowserExtensionSetEnabled(extensionID string, enabled bool) (Brow
 	if err := a.browserMgr.ExtensionDAO.SetEnabled(extensionID, enabled); err != nil {
 		return BrowserExtension{}, err
 	}
-	return a.browserMgr.ExtensionDAO.Get(extensionID)
+	extension, err := a.browserMgr.ExtensionDAO.Get(extensionID)
+	if err != nil {
+		return BrowserExtension{}, err
+	}
+	return a.populateExtensionScope(extension), nil
+}
+
+func (a *App) populateExtensionScope(extension BrowserExtension) BrowserExtension {
+	if a.browserMgr == nil || a.browserMgr.ExtensionDAO == nil {
+		return extension
+	}
+	scope, err := a.browserMgr.ExtensionDAO.GetExtensionProfileScope(extension.ExtensionID)
+	if err != nil {
+		return extension
+	}
+	extension.ScopeRestricted = scope.Restricted
+	activeProfiles := make(map[string]struct{})
+	for _, profile := range a.browserMgr.List() {
+		activeProfiles[profile.ProfileId] = struct{}{}
+	}
+	for _, profileID := range scope.ProfileIDs {
+		if _, active := activeProfiles[profileID]; active {
+			extension.ScopeProfileCount++
+		}
+	}
+	return extension
 }
 
 func (a *App) BrowserExtensionDelete(extensionID string) error {
@@ -299,14 +333,62 @@ func (a *App) BrowserExtensionDelete(extensionID string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := a.resolveBrowserExtensionInstallDir(extension.InstallDir); err != nil {
+	installDir, err := a.resolveBrowserExtensionInstallDir(a.browserMgr.ManagedExtensionInstallDir(extension.ExtensionID))
+	if err != nil {
+		return err
+	}
+	if err := a.uninstallBrowserExtensionFromProfiles(installDir); err != nil {
+		return err
+	}
+	if err := a.removeBrowserExtensionFiles(extension, installDir); err != nil {
 		return err
 	}
 	if err := a.browserMgr.ExtensionDAO.Delete(extensionID); err != nil {
 		return err
 	}
-	if err := a.removeBrowserExtensionInstallDir(extension.InstallDir); err != nil {
-		return err
+	return nil
+}
+
+func (a *App) uninstallBrowserExtensionFromProfiles(installDir string) error {
+	profiles := append(a.browserMgr.List(), a.browserMgr.ListDeleted()...)
+	seen := make(map[string]struct{}, len(profiles))
+	cleanupProfiles := make([]BrowserProfile, 0)
+	busyProfiles := make([]string, 0)
+	for _, profile := range profiles {
+		if _, exists := seen[profile.ProfileId]; exists {
+			continue
+		}
+		seen[profile.ProfileId] = struct{}{}
+		userDataDir := a.browserMgr.ResolveUserDataDir(&profile)
+		if !browser.ProfileReferencesExtensionPath(userDataDir, installDir) {
+			continue
+		}
+		if profile.Running {
+			busyProfiles = append(busyProfiles, profile.ProfileName)
+			continue
+		}
+		if detection, ok := detectBrowserRuntimeByActivePort(userDataDir); ok && detection.PID > 0 {
+			busyProfiles = append(busyProfiles, profile.ProfileName)
+			continue
+		}
+		cleanupProfiles = append(cleanupProfiles, profile)
+	}
+	if len(busyProfiles) > 0 {
+		return fmt.Errorf("插件仍被运行中的实例使用，请先关闭后再删除：%s", strings.Join(busyProfiles, "、"))
+	}
+
+	for _, profile := range cleanupProfiles {
+		chromeBinaryPath, err := a.browserMgr.ResolveChromeBinary(&profile)
+		if err != nil {
+			return fmt.Errorf("清理实例 %s 的插件数据失败：%w", profile.ProfileName, err)
+		}
+		userDataDir := a.browserMgr.ResolveUserDataDir(&profile)
+		if err := browser.UninstallProfileExtension(chromeBinaryPath, userDataDir, installDir); err != nil {
+			return fmt.Errorf("清理实例 %s 的插件数据失败：%w", profile.ProfileName, err)
+		}
+		if browser.ProfileReferencesExtensionPath(userDataDir, installDir) {
+			return fmt.Errorf("实例 %s 仍残留插件配置，删除已中止", profile.ProfileName)
+		}
 	}
 	return nil
 }
@@ -333,27 +415,167 @@ func (a *App) resolveBrowserExtensionInstallDir(installDir string) (string, erro
 	return target, nil
 }
 
-func (a *App) removeBrowserExtensionInstallDir(installDir string) error {
-	target, err := a.resolveBrowserExtensionInstallDir(installDir)
-	if err != nil || target == "" {
+func (a *App) removeBrowserExtensionFiles(extension BrowserExtension, installDir string) error {
+	if installDir == "" {
+		return nil
+	}
+	candidates := []string{installDir, installDir + ".tmp"}
+	if matches, err := filepath.Glob(installDir + ".tmp-*"); err == nil {
+		candidates = append(candidates, matches...)
+	}
+
+	manualDir, err := filepath.Abs(a.extensionManualDownloadDir())
+	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(target); err != nil {
-		return fmt.Errorf("删除插件目录失败: %w", err)
+	if sourcePath := strings.TrimSpace(extension.SourceURL); filepath.IsAbs(sourcePath) && pathWithinDirectory(sourcePath, manualDir) {
+		candidates = append(candidates, sourcePath)
+	}
+	if entries, readErr := os.ReadDir(manualDir); readErr == nil {
+		for _, entry := range entries {
+			name := strings.ToLower(strings.TrimSpace(entry.Name()))
+			id := strings.ToLower(strings.TrimSpace(extension.ExtensionID))
+			if name == id+".crx" || name == id+".zip" {
+				candidates = append(candidates, filepath.Join(manualDir, entry.Name()))
+			}
+		}
+	} else if !os.IsNotExist(readErr) {
+		return fmt.Errorf("读取插件下载目录失败: %w", readErr)
+	}
+
+	for _, candidate := range appendUniquePaths(candidates) {
+		if candidate == "" {
+			continue
+		}
+		if candidate != installDir && !pathWithinDirectory(candidate, filepath.Dir(installDir)) && !pathWithinDirectory(candidate, manualDir) {
+			return fmt.Errorf("拒绝清理插件目录外的路径: %s", candidate)
+		}
+		if err := os.RemoveAll(candidate); err != nil {
+			return fmt.Errorf("删除插件文件失败 %s: %w", candidate, err)
+		}
 	}
 	return nil
+}
+
+func pathWithinDirectory(path string, root string) bool {
+	pathAbs, pathErr := filepath.Abs(path)
+	rootAbs, rootErr := filepath.Abs(root)
+	if pathErr != nil || rootErr != nil {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(rootAbs), filepath.Clean(pathAbs))
+	return err == nil && rel != "." && rel != "" && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func appendUniquePaths(paths []string) []string {
+	result := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		key := filepath.Clean(strings.TrimSpace(path))
+		if runtime.GOOS == "windows" {
+			key = strings.ToLower(key)
+		}
+		if key == "" || key == "." {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, path)
+	}
+	return result
 }
 
 func (a *App) BrowserProfileExtensionGet(profileID string) (BrowserProfileExtensionSettings, error) {
 	if a.browserMgr == nil || a.browserMgr.ExtensionDAO == nil {
 		return BrowserProfileExtensionSettings{}, fmt.Errorf("插件管理器未初始化")
 	}
-	return a.browserMgr.ExtensionDAO.GetProfileSettings(profileID)
+	settings, err := a.browserMgr.ExtensionDAO.GetProfileSettings(profileID)
+	if err != nil {
+		return BrowserProfileExtensionSettings{}, err
+	}
+	return a.populateAllowedProfileExtensions(settings), nil
 }
 
 func (a *App) BrowserProfileExtensionSave(profileID string, extensionIDs []string, configured bool) (BrowserProfileExtensionSettings, error) {
 	if a.browserMgr == nil || a.browserMgr.ExtensionDAO == nil {
 		return BrowserProfileExtensionSettings{}, fmt.Errorf("插件管理器未初始化")
 	}
-	return a.browserMgr.ExtensionDAO.SetProfileSettings(profileID, extensionIDs, configured)
+	settings, err := a.browserMgr.ExtensionDAO.SetProfileSettings(profileID, extensionIDs, configured)
+	if err != nil {
+		return BrowserProfileExtensionSettings{}, err
+	}
+	return a.populateAllowedProfileExtensions(settings), nil
+}
+
+func (a *App) populateAllowedProfileExtensions(settings BrowserProfileExtensionSettings) BrowserProfileExtensionSettings {
+	items := a.browserMgr.AllowedExtensionsForProfile(settings.ProfileID)
+	settings.AllowedExtensionIDs = make([]string, 0, len(items))
+	for _, item := range items {
+		settings.AllowedExtensionIDs = append(settings.AllowedExtensionIDs, item.ExtensionID)
+	}
+	return settings
+}
+
+func (a *App) BrowserExtensionProfileScopeGet(extensionID string) (BrowserExtensionProfileScope, error) {
+	if a.browserMgr == nil || a.browserMgr.ExtensionDAO == nil {
+		return BrowserExtensionProfileScope{}, fmt.Errorf("插件管理器未初始化")
+	}
+	extensionID = strings.TrimSpace(extensionID)
+	if _, err := a.browserMgr.ExtensionDAO.Get(extensionID); err != nil {
+		return BrowserExtensionProfileScope{}, err
+	}
+	return a.browserMgr.ExtensionDAO.GetExtensionProfileScope(extensionID)
+}
+
+func (a *App) BrowserExtensionProfileScopeSave(extensionID string, profileIDs []string, restricted bool) (BrowserExtensionProfileScope, error) {
+	if a.browserMgr == nil || a.browserMgr.ExtensionDAO == nil {
+		return BrowserExtensionProfileScope{}, fmt.Errorf("插件管理器未初始化")
+	}
+	extensionID = strings.TrimSpace(extensionID)
+	if _, err := a.browserMgr.ExtensionDAO.Get(extensionID); err != nil {
+		return BrowserExtensionProfileScope{}, err
+	}
+	known := make(map[string]struct{})
+	deleted := make(map[string]struct{})
+	for _, profile := range a.browserMgr.List() {
+		known[profile.ProfileId] = struct{}{}
+	}
+	for _, profile := range a.browserMgr.ListDeleted() {
+		known[profile.ProfileId] = struct{}{}
+		deleted[profile.ProfileId] = struct{}{}
+	}
+	normalized := make([]string, 0, len(profileIDs))
+	seen := make(map[string]struct{}, len(profileIDs))
+	for _, profileID := range profileIDs {
+		profileID = strings.TrimSpace(profileID)
+		if profileID == "" {
+			continue
+		}
+		if _, ok := known[profileID]; !ok {
+			return BrowserExtensionProfileScope{}, fmt.Errorf("实例不存在: %s", profileID)
+		}
+		if _, ok := seen[profileID]; ok {
+			continue
+		}
+		seen[profileID] = struct{}{}
+		normalized = append(normalized, profileID)
+	}
+	// 回收站实例不显示在作用域弹窗中；编辑现有规则时保留它们原来的允许状态。
+	if restricted {
+		if current, err := a.browserMgr.ExtensionDAO.GetExtensionProfileScope(extensionID); err == nil && current.Restricted {
+			for _, profileID := range current.ProfileIDs {
+				if _, isDeleted := deleted[profileID]; !isDeleted {
+					continue
+				}
+				if _, ok := seen[profileID]; ok {
+					continue
+				}
+				seen[profileID] = struct{}{}
+				normalized = append(normalized, profileID)
+			}
+		}
+	}
+	return a.browserMgr.ExtensionDAO.SetExtensionProfileScope(extensionID, normalized, restricted)
 }

@@ -242,6 +242,14 @@ export function BrowserExtensionOpenManualDownloadDir() {
   return window['go']['main']['App']['BrowserExtensionOpenManualDownloadDir']();
 }
 
+export function BrowserExtensionProfileScopeGet(arg1) {
+  return window['go']['main']['App']['BrowserExtensionProfileScopeGet'](arg1);
+}
+
+export function BrowserExtensionProfileScopeSave(arg1, arg2, arg3) {
+  return window['go']['main']['App']['BrowserExtensionProfileScopeSave'](arg1, arg2, arg3);
+}
+
 export function BrowserExtensionSetEnabled(arg1, arg2) {
   return window['go']['main']['App']['BrowserExtensionSetEnabled'](arg1, arg2);
 }

@@ -17,6 +17,7 @@ export function ProfileExtensionModal({ open, profile, onClose }: ProfileExtensi
   const [extensions, setExtensions] = useState<BrowserExtension[]>([])
   const [configured, setConfigured] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [allowedIds, setAllowedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -31,7 +32,8 @@ export function ProfileExtensionModal({ open, profile, onClose }: ProfileExtensi
     ]).then(([extensionItems, settings]) => {
       setExtensions(extensionItems)
       setConfigured(settings.configured)
-      setSelectedIds(settings.extensionIds)
+      setAllowedIds(settings.allowedExtensionIds)
+      setSelectedIds(settings.configured ? settings.extensionIds : settings.allowedExtensionIds)
     }).catch((error: any) => {
       toast.error(error?.message || '加载实例插件配置失败')
     }).finally(() => setLoading(false))
@@ -49,7 +51,7 @@ export function ProfileExtensionModal({ open, profile, onClose }: ProfileExtensi
     setSaving(true)
     try {
       await saveBrowserProfileExtensionSettings(profile.profileId, selectedIds, configured)
-      toast.success('实例插件配置已保存')
+      toast.success(profile.running ? '实例插件配置已保存，关闭实例后生效' : '实例插件配置已保存')
       onClose()
     } catch (error: any) {
       toast.error(error?.message || '保存实例插件配置失败')
@@ -84,16 +86,22 @@ export function ProfileExtensionModal({ open, profile, onClose }: ProfileExtensi
 
         {!configured ? (
           <div className="rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-bg-muted)] px-4 py-5 text-sm text-[var(--color-text-muted)]">
-            当前实例继承全局已启用插件。打开单独配置后，只加载下方勾选的插件。
+            当前实例继承全局开关和插件允许范围。打开单独配置后，只能在允许范围内进一步减少插件。
+          </div>
+        ) : null}
+
+        {profile?.running ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            当前实例正在运行，保存后的插件配置会在实例关闭后生效。
           </div>
         ) : null}
 
         <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
           {extensions.map((extension) => (
-            <label key={extension.extensionId} className={`flex items-start gap-3 rounded-xl border border-[var(--color-border-default)] px-3 py-2 ${configured ? 'bg-[var(--color-bg-surface)]' : 'bg-[var(--color-bg-muted)] opacity-70'}`}>
+            <label key={extension.extensionId} className={`flex items-start gap-3 rounded-xl border border-[var(--color-border-default)] px-3 py-2 ${configured && allowedIds.includes(extension.extensionId) ? 'bg-[var(--color-bg-surface)]' : 'bg-[var(--color-bg-muted)] opacity-70'}`}>
               <input
                 type="checkbox"
-                disabled={!configured}
+                disabled={!configured || !allowedIds.includes(extension.extensionId)}
                 checked={selectedSet.has(extension.extensionId)}
                 onChange={(event) => toggleExtension(extension.extensionId, event.target.checked)}
                 className="mt-1 h-4 w-4 shrink-0 rounded accent-[var(--color-accent)]"
@@ -103,6 +111,7 @@ export function ProfileExtensionModal({ open, profile, onClose }: ProfileExtensi
                   <span>{extension.name || extension.extensionId}</span>
                   {extension.version ? <span className="text-xs font-normal text-[var(--color-text-muted)]">v{extension.version}</span> : null}
                   {!extension.enabled ? <span className="rounded bg-[var(--color-bg-muted)] px-1.5 py-0.5 text-xs text-[var(--color-text-muted)]">全局停用</span> : null}
+                  {extension.enabled && !allowedIds.includes(extension.extensionId) ? <span className="rounded bg-[var(--color-bg-muted)] px-1.5 py-0.5 text-xs text-[var(--color-text-muted)]">插件范围已排除</span> : null}
                 </div>
                 <div className="mt-1 break-all font-mono text-xs text-[var(--color-text-muted)]">{extension.extensionId}</div>
               </div>

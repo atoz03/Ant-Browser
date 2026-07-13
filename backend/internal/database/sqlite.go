@@ -204,6 +204,26 @@ var migrations = []migration{
 			`ALTER TABLE browser_proxies ADD COLUMN preferred_kernel TEXT NOT NULL DEFAULT ''`,
 		},
 	},
+	{
+		version: 13,
+		desc:    "添加插件实例作用域",
+		stmts: []string{
+			`CREATE TABLE IF NOT EXISTS browser_extension_scope_settings (
+				extension_id TEXT PRIMARY KEY,
+				restricted   INTEGER NOT NULL DEFAULT 0,
+				updated_at   TEXT NOT NULL DEFAULT ''
+			)`,
+			`CREATE TABLE IF NOT EXISTS browser_extension_scope_profiles (
+				extension_id TEXT NOT NULL,
+				profile_id   TEXT NOT NULL,
+				created_at   TEXT NOT NULL DEFAULT '',
+				updated_at   TEXT NOT NULL DEFAULT '',
+				PRIMARY KEY (extension_id, profile_id)
+			)`,
+			`CREATE INDEX IF NOT EXISTS idx_browser_extension_scope_profiles_extension ON browser_extension_scope_profiles(extension_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_browser_extension_scope_profiles_profile ON browser_extension_scope_profiles(profile_id)`,
+		},
+	},
 	// ── 新版本在此追加，格式：
 	// {
 	//     version: 4,

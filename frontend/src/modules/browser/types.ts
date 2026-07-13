@@ -258,6 +258,8 @@ export interface BrowserExtension {
   sourceUrl: string
   installDir: string
   enabled: boolean
+  scopeRestricted: boolean
+  scopeProfileCount: number
   installedAt: string
   updatedAt: string
 }
@@ -276,6 +278,14 @@ export interface BrowserProfileExtensionSettings {
   profileId: string
   configured: boolean
   extensionIds: string[]
+  allowedExtensionIds: string[]
+  updatedAt: string
+}
+
+export interface BrowserExtensionProfileScope {
+  extensionId: string
+  restricted: boolean
+  profileIds: string[]
   updatedAt: string
 }
 

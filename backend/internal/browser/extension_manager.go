@@ -248,6 +248,29 @@ func (m *Manager) InstallExtensionDirectory(sourceDir string) (Extension, error)
 }
 
 func (m *Manager) EnabledExtensionDirs() []string {
+	return extensionDirs(m.EnabledExtensionsForProfile(""))
+}
+
+// ListExtensions 返回插件列表，并将安装目录解析到当前设备的应用数据根目录。
+func (m *Manager) ListExtensions() ([]Extension, error) {
+	if m == nil || m.ExtensionDAO == nil {
+		return []Extension{}, nil
+	}
+	items, err := m.ExtensionDAO.List()
+	if err != nil {
+		return nil, err
+	}
+	return m.resolveManagedExtensionDirs(items), nil
+}
+
+func (m *Manager) HasManagedExtensions() bool {
+	items, err := m.ListExtensions()
+	return err == nil && len(items) > 0
+}
+
+// AllowedExtensionsForProfile 返回全局启用且作用域允许进入当前实例的插件。
+// 单实例白名单只能在此基础上进一步收窄，不能绕过全局停用或插件作用域。
+func (m *Manager) AllowedExtensionsForProfile(profileID string) []Extension {
 	if m == nil || m.ExtensionDAO == nil {
 		return nil
 	}
@@ -255,6 +278,72 @@ func (m *Manager) EnabledExtensionDirs() []string {
 	if err != nil {
 		return nil
 	}
+	items = m.resolveManagedExtensionDirs(items)
+	if strings.TrimSpace(profileID) == "" {
+		return items
+	}
+	allowed := make([]Extension, 0, len(items))
+	for _, item := range items {
+		scope, err := m.ExtensionDAO.GetExtensionProfileScope(item.ExtensionID)
+		if err != nil {
+			return nil
+		}
+		if !scope.Restricted || containsString(scope.ProfileIDs, profileID) {
+			allowed = append(allowed, item)
+		}
+	}
+	return allowed
+}
+
+// EnabledExtensionsForProfile 返回当前实例最终应启用的插件包。
+func (m *Manager) EnabledExtensionsForProfile(profileID string) []Extension {
+	allowed := m.AllowedExtensionsForProfile(profileID)
+	if m == nil || m.ExtensionDAO == nil || strings.TrimSpace(profileID) == "" {
+		return allowed
+	}
+	settings, err := m.ExtensionDAO.GetProfileSettings(profileID)
+	if err != nil || !settings.Configured {
+		return allowed
+	}
+	selected := make(map[string]struct{}, len(settings.ExtensionIDs))
+	for _, extensionID := range settings.ExtensionIDs {
+		selected[extensionID] = struct{}{}
+	}
+	result := make([]Extension, 0, len(allowed))
+	for _, item := range allowed {
+		if _, ok := selected[item.ExtensionID]; ok {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func (m *Manager) ManagedExtensionInstallDir(extensionID string) string {
+	return filepath.Join(m.ResolveRelativePath(filepath.Join("data", extensionsRootDir)), strings.TrimSpace(extensionID))
+}
+
+func (m *Manager) resolveManagedExtensionDirs(items []Extension) []Extension {
+	result := make([]Extension, 0, len(items))
+	for _, item := range items {
+		managedDir := m.ManagedExtensionInstallDir(item.ExtensionID)
+		if _, err := os.Stat(filepath.Join(managedDir, "manifest.json")); err == nil {
+			item.InstallDir = managedDir
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+func extensionDirs(items []Extension) []string {
 	dirs := make([]string, 0, len(items))
 	for _, item := range items {
 		dir := strings.TrimSpace(item.InstallDir)
@@ -269,25 +358,5 @@ func (m *Manager) EnabledExtensionDirs() []string {
 }
 
 func (m *Manager) EnabledExtensionDirsForProfile(profileID string) []string {
-	if m == nil || m.ExtensionDAO == nil {
-		return nil
-	}
-	settings, err := m.ExtensionDAO.GetProfileSettings(profileID)
-	if err != nil || !settings.Configured {
-		return m.EnabledExtensionDirs()
-	}
-	items, err := m.ExtensionDAO.ListByIDs(settings.ExtensionIDs)
-	if err != nil {
-		return nil
-	}
-	dirs := make([]string, 0, len(items))
-	for _, item := range items {
-		dir := strings.TrimSpace(item.InstallDir)
-		if dir != "" {
-			if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err == nil {
-				dirs = append(dirs, dir)
-			}
-		}
-	}
-	return dirs
+	return extensionDirs(m.EnabledExtensionsForProfile(profileID))
 }

@@ -101,6 +101,7 @@ require_cmd() {
 require_cmd python3
 require_cmd ditto
 require_cmd wails
+require_cmd codesign
 
 if [[ -z "$VERSION" ]]; then
   VERSION="$(python3 - "$ROOT_DIR/wails.json" <<'PY'
@@ -240,6 +241,10 @@ if [[ -f "$CHROME_README_SRC" ]]; then
   mkdir -p "$APP_MACOS_DIR/chrome"
   cp "$CHROME_README_SRC" "$APP_MACOS_DIR/chrome/README.md"
 fi
+
+# Wails 会先对原始 bundle 做 ad-hoc 签名；上面新增运行时和种子文件后必须重新签名，
+# 否则最终导出的 .app 会因为 sealed resources 变化而无法通过 codesign 验证。
+codesign --force --deep --sign - "$APP_STAGE"
 
 ditto "$APP_STAGE" "$APP_EXPORT"
 rm -f "$OUTPUT_DIR/$ZIP_NAME"

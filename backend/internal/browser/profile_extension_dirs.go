@@ -10,10 +10,16 @@ import (
 type chromiumExtensionPreferences struct {
 	Extensions struct {
 		Settings map[string]struct {
-			Location int    `json:"location"`
-			Path     string `json:"path"`
+			Location       int    `json:"location"`
+			Path           string `json:"path"`
+			DisableReasons []int  `json:"disable_reasons"`
 		} `json:"settings"`
 	} `json:"extensions"`
+}
+
+type persistedUnpackedExtension struct {
+	Path           string
+	DisableReasons []int
 }
 
 // LaunchExtensionDirsForProfile 返回应用托管插件和用户手动加载的开发者插件。
@@ -53,6 +59,44 @@ func persistedUnpackedExtensionDirs(userDataDir string, managedRoot string) []st
 	return dirs
 }
 
+// ProfileReferencesExtensionPath 判断 Chromium profile 是否仍记录指定插件目录。
+// 同时检查 Preferences 和 Secure Preferences，以覆盖旧的命令行加载记录和新的持久化记录。
+func ProfileReferencesExtensionPath(userDataDir string, installDir string) bool {
+	for _, name := range []string{"Secure Preferences", "Preferences"} {
+		var prefs chromiumExtensionPreferences
+		data, err := os.ReadFile(filepath.Join(userDataDir, "Default", name))
+		if err != nil || json.Unmarshal(data, &prefs) != nil {
+			continue
+		}
+		for _, item := range prefs.Extensions.Settings {
+			if sameExtensionPath(item.Path, installDir) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func persistedManagedUnpackedExtensions(userDataDir string, managedRoot string) map[string]persistedUnpackedExtension {
+	items := make(map[string]persistedUnpackedExtension)
+	for _, name := range []string{"Secure Preferences", "Preferences"} {
+		var prefs chromiumExtensionPreferences
+		data, err := os.ReadFile(filepath.Join(userDataDir, "Default", name))
+		if err != nil || json.Unmarshal(data, &prefs) != nil {
+			continue
+		}
+		for _, item := range prefs.Extensions.Settings {
+			if item.Location == 4 && isPathWithin(item.Path, managedRoot) {
+				items[normalizedExtensionPath(item.Path)] = persistedUnpackedExtension{
+					Path:           item.Path,
+					DisableReasons: append([]int(nil), item.DisableReasons...),
+				}
+			}
+		}
+	}
+	return items
+}
+
 func appendUniqueExtensionDirs(base []string, extra ...string) []string {
 	result := make([]string, 0, len(base)+len(extra))
 	seen := make(map[string]struct{}, len(base)+len(extra))
@@ -61,7 +105,7 @@ func appendUniqueExtensionDirs(base []string, extra ...string) []string {
 		if dir == "" {
 			continue
 		}
-		key := strings.ToLower(filepath.Clean(dir))
+		key := normalizedExtensionPath(dir)
 		if _, ok := seen[key]; ok {
 			continue
 		}

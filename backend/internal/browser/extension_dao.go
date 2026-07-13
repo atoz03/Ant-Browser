@@ -18,6 +18,8 @@ type ExtensionDAO interface {
 	GetProfileSettings(profileID string) (ProfileExtensionSettings, error)
 	SetProfileSettings(profileID string, extensionIDs []string, configured bool) (ProfileExtensionSettings, error)
 	DeleteProfileSettings(profileID string) error
+	GetExtensionProfileScope(extensionID string) (ExtensionProfileScope, error)
+	SetExtensionProfileScope(extensionID string, profileIDs []string, restricted bool) (ExtensionProfileScope, error)
 }
 
 type SQLiteExtensionDAO struct {
@@ -109,11 +111,31 @@ func (d *SQLiteExtensionDAO) SetEnabled(extensionID string, enabled bool) error 
 }
 
 func (d *SQLiteExtensionDAO) Delete(extensionID string) error {
-	_, err := d.db.Exec(`DELETE FROM browser_extensions WHERE extension_id = ?`, strings.TrimSpace(extensionID))
+	tx, err := d.db.Begin()
 	if err != nil {
 		return fmt.Errorf("删除插件失败: %w", err)
 	}
-	_, _ = d.db.Exec(`DELETE FROM browser_profile_extensions WHERE extension_id = ?`, strings.TrimSpace(extensionID))
+	defer tx.Rollback()
+	id := strings.TrimSpace(extensionID)
+	if _, err := tx.Exec(`DELETE FROM browser_extension_scope_profiles WHERE extension_id = ?`, id); err != nil {
+		return fmt.Errorf("删除插件实例作用域失败: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM browser_extension_scope_settings WHERE extension_id = ?`, id); err != nil {
+		return fmt.Errorf("删除插件作用域设置失败: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM browser_profile_extensions WHERE extension_id = ?`, id); err != nil {
+		return fmt.Errorf("删除实例插件绑定失败: %w", err)
+	}
+	result, err := tx.Exec(`DELETE FROM browser_extensions WHERE extension_id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("删除插件失败: %w", err)
+	}
+	if rows, _ := result.RowsAffected(); rows == 0 {
+		return sql.ErrNoRows
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("删除插件失败: %w", err)
+	}
 	return nil
 }
 
@@ -152,6 +174,9 @@ func (d *SQLiteExtensionDAO) SetProfileSettings(profileID string, extensionIDs [
 		return ProfileExtensionSettings{}, fmt.Errorf("实例 ID 不能为空")
 	}
 	ids := normalizeExtensionIDs(extensionIDs)
+	if !configured {
+		ids = nil
+	}
 	now := time.Now().Format(time.RFC3339)
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -186,6 +211,9 @@ func (d *SQLiteExtensionDAO) DeleteProfileSettings(profileID string) error {
 		return err
 	}
 	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM browser_extension_scope_profiles WHERE profile_id = ?`, profileID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM browser_profile_extensions WHERE profile_id = ?`, profileID); err != nil {
 		return err
 	}
@@ -193,6 +221,67 @@ func (d *SQLiteExtensionDAO) DeleteProfileSettings(profileID string) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+func (d *SQLiteExtensionDAO) GetExtensionProfileScope(extensionID string) (ExtensionProfileScope, error) {
+	extensionID = strings.TrimSpace(extensionID)
+	if extensionID == "" {
+		return ExtensionProfileScope{}, fmt.Errorf("插件 ID 不能为空")
+	}
+	scope := ExtensionProfileScope{ExtensionID: extensionID}
+	var restricted int
+	err := d.db.QueryRow(`SELECT restricted, updated_at FROM browser_extension_scope_settings WHERE extension_id = ?`, extensionID).Scan(&restricted, &scope.UpdatedAt)
+	if err != nil && err != sql.ErrNoRows {
+		return ExtensionProfileScope{}, err
+	}
+	if err == nil {
+		scope.Restricted = restricted != 0
+	}
+	rows, err := d.db.Query(`SELECT profile_id FROM browser_extension_scope_profiles WHERE extension_id = ? ORDER BY created_at ASC, profile_id ASC`, extensionID)
+	if err != nil {
+		return ExtensionProfileScope{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var profileID string
+		if err := rows.Scan(&profileID); err != nil {
+			return ExtensionProfileScope{}, err
+		}
+		scope.ProfileIDs = append(scope.ProfileIDs, profileID)
+	}
+	return scope, rows.Err()
+}
+
+func (d *SQLiteExtensionDAO) SetExtensionProfileScope(extensionID string, profileIDs []string, restricted bool) (ExtensionProfileScope, error) {
+	extensionID = strings.TrimSpace(extensionID)
+	if extensionID == "" {
+		return ExtensionProfileScope{}, fmt.Errorf("插件 ID 不能为空")
+	}
+	ids := normalizeExtensionIDs(profileIDs)
+	now := time.Now().Format(time.RFC3339)
+	tx, err := d.db.Begin()
+	if err != nil {
+		return ExtensionProfileScope{}, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT INTO browser_extension_scope_settings (extension_id, restricted, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(extension_id) DO UPDATE SET restricted = excluded.restricted, updated_at = excluded.updated_at`, extensionID, boolToInt(restricted), now); err != nil {
+		return ExtensionProfileScope{}, err
+	}
+	if _, err := tx.Exec(`DELETE FROM browser_extension_scope_profiles WHERE extension_id = ?`, extensionID); err != nil {
+		return ExtensionProfileScope{}, err
+	}
+	if restricted {
+		for _, profileID := range ids {
+			if _, err := tx.Exec(`INSERT INTO browser_extension_scope_profiles (extension_id, profile_id, created_at, updated_at) VALUES (?, ?, ?, ?)`, extensionID, profileID, now, now); err != nil {
+				return ExtensionProfileScope{}, err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return ExtensionProfileScope{}, err
+	}
+	return d.GetExtensionProfileScope(extensionID)
 }
 
 func (d *SQLiteExtensionDAO) listWhere(where string, args []any) ([]Extension, error) {

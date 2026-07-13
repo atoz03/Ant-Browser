@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Search } from 'lucide-react'
 import { Button, Input, Modal, toast } from '../../../shared/components'
-import type { BrowserExtension, BrowserGroupWithCount, BrowserProfile, BrowserProfileExtensionSettings } from '../types'
-import { fetchBrowserProfileExtensionSettings, saveBrowserProfileExtensionSettings, type BrowserExtensionManualDownloadFile, type BrowserExtensionManualInstallGuide } from '../api/extensions'
+import type { BrowserExtension, BrowserExtensionProfileScope, BrowserGroupWithCount, BrowserProfile } from '../types'
+import { fetchBrowserExtensionProfileScope, saveBrowserExtensionProfileScope, type BrowserExtensionManualDownloadFile, type BrowserExtensionManualInstallGuide } from '../api/extensions'
 import { fetchGroups } from '../api/groups'
 import { fetchBrowserProfiles } from '../api/profiles'
-import { extensionHistoryActionLabel, formatExtensionTime, sameStringSet, type ExtensionHistoryRecord } from './extensionManagementUtils'
+import { extensionHistoryActionLabel, formatExtensionTime, type ExtensionHistoryRecord } from './extensionManagementUtils'
 import { openExternalURL } from '../../../shared/utils/openExternalURL'
 
 const UNGROUPED_PROFILE_GROUP_ID = '__ungrouped__'
@@ -13,23 +13,20 @@ const UNGROUPED_PROFILE_GROUP_ID = '__ungrouped__'
 export interface ExtensionProfileLimitModalProps {
   open: boolean
   extension: BrowserExtension | null
-  allExtensions: BrowserExtension[]
   onClose: () => void
+  onSaved: () => void
 }
 
-export function ExtensionProfileLimitModal({ open, extension, allExtensions, onClose }: ExtensionProfileLimitModalProps) {
+export function ExtensionProfileLimitModal({ open, extension, onClose, onSaved }: ExtensionProfileLimitModalProps) {
   const [profiles, setProfiles] = useState<BrowserProfile[]>([])
   const [groups, setGroups] = useState<BrowserGroupWithCount[]>([])
-  const [settingsByProfile, setSettingsByProfile] = useState<Record<string, BrowserProfileExtensionSettings>>({})
+  const [initialScope, setInitialScope] = useState<BrowserExtensionProfileScope | null>(null)
+  const [restricted, setRestricted] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
-  const enabledExtensionIds = useMemo(
-    () => allExtensions.filter((item) => item.enabled).map((item) => item.extensionId),
-    [allExtensions],
-  )
   const groupNameMap = useMemo(() => {
     const map = new Map<string, string>()
     groups.forEach((group) => map.set(group.groupId, group.groupName))
@@ -78,24 +75,16 @@ export function ExtensionProfileLimitModal({ open, extension, allExtensions, onC
   useEffect(() => {
     if (!open || !extension) return
     setLoading(true)
-    Promise.all([fetchBrowserProfiles(), fetchGroups()]).then(async ([profileItems, groupItems]) => {
-      const profileSettings = await Promise.all(profileItems.map(async (profile) => ({
-        profile,
-        settings: await fetchBrowserProfileExtensionSettings(profile.profileId),
-      })))
-      const settingsMap: Record<string, BrowserProfileExtensionSettings> = {}
-      profileSettings.forEach(({ profile, settings }) => {
-        settingsMap[profile.profileId] = settings
-      })
+    Promise.all([
+      fetchBrowserProfiles(),
+      fetchGroups(),
+      fetchBrowserExtensionProfileScope(extension.extensionId),
+    ]).then(([profileItems, groupItems, scope]) => {
       setProfiles(profileItems)
       setGroups(groupItems)
-      setSettingsByProfile(settingsMap)
-      setSelectedIds(profileItems
-        .filter((profile) => {
-          const settings = settingsMap[profile.profileId]
-          return settings?.configured ? settings.extensionIds.includes(extension.extensionId) : extension.enabled
-        })
-        .map((profile) => profile.profileId))
+      setInitialScope(scope)
+      setRestricted(scope.restricted)
+      setSelectedIds(scope.restricted ? scope.profileIds : profileItems.map((profile) => profile.profileId))
     }).catch((error: any) => {
       toast.error(error?.message || '加载实例限制失败')
     }).finally(() => setLoading(false))
@@ -123,21 +112,12 @@ export function ExtensionProfileLimitModal({ open, extension, allExtensions, onC
     if (!extension) return
     setSaving(true)
     try {
-      const selected = new Set(selectedIds)
-      const saveTasks = profiles.map((profile) => {
-        const current = settingsByProfile[profile.profileId]
-        const baseIds = current?.configured ? current.extensionIds : enabledExtensionIds
-        const nextIds = selected.has(profile.profileId)
-          ? Array.from(new Set([...baseIds, extension.extensionId]))
-          : baseIds.filter((extensionId) => extensionId !== extension.extensionId)
-
-        if (!current?.configured && sameStringSet(baseIds, nextIds)) return null
-        if (current?.configured && sameStringSet(current.extensionIds, nextIds)) return null
-        return saveBrowserProfileExtensionSettings(profile.profileId, nextIds, true)
-      }).filter((task): task is Promise<BrowserProfileExtensionSettings> => task !== null)
-
-      if (saveTasks.length > 0) await Promise.all(saveTasks)
-      toast.success('实例限制已保存')
+      await saveBrowserExtensionProfileScope(extension.extensionId, restricted ? selectedIds : [], restricted)
+      const beforeAllowed = (profileId: string) => !initialScope?.restricted || initialScope.profileIds.includes(profileId)
+      const afterAllowed = (profileId: string) => !restricted || selectedSet.has(profileId)
+      const runningChanged = profiles.some((profile) => profile.running && beforeAllowed(profile.profileId) !== afterAllowed(profile.profileId))
+      toast.success(runningChanged ? '实例限制已保存，运行中的实例关闭后生效' : '实例限制已保存')
+      onSaved()
       onClose()
     } catch (error: any) {
       toast.error(error?.message || '保存实例限制失败')
@@ -164,8 +144,31 @@ export function ExtensionProfileLimitModal({ open, extension, allExtensions, onC
       ) : (
         <div className="space-y-3">
           <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-muted)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">
-            勾选的实例会加载此插件；未勾选的实例会排除此插件。
+            此处只设置插件允许进入的实例范围，不会改写实例的整套插件配置。运行中的实例关闭后生效。
           </div>
+          {!extension?.enabled ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              插件当前全局停用；这里保存的范围会在重新启用插件后生效。
+            </div>
+          ) : null}
+          <label className="flex items-center justify-between rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2">
+            <div>
+              <div className="text-sm font-medium text-[var(--color-text-primary)]">仅允许所选实例</div>
+              <div className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                {restricted ? '新建实例默认不会加载此插件' : '当前及以后新建的实例默认都可加载'}
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={restricted}
+              onChange={(event) => {
+                const next = event.target.checked
+                setRestricted(next)
+                if (!next) setSelectedIds(profiles.map((profile) => profile.profileId))
+              }}
+              className="h-4 w-4 rounded accent-[var(--color-accent)]"
+            />
+          </label>
           <div className="max-h-[420px] space-y-3 overflow-auto pr-1">
             {profileGroups.map((group) => {
               const groupProfileIds = group.profiles.map((profile) => profile.profileId)
@@ -179,7 +182,7 @@ export function ExtensionProfileLimitModal({ open, extension, allExtensions, onC
                       <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{group.groupName}</div>
                       <div className="text-xs text-[var(--color-text-muted)]">已选 {selectedCount} / {groupProfileIds.length}</div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => toggleGroup(groupProfileIds, !allSelected)}>
+                    <Button size="sm" variant="ghost" disabled={!restricted} onClick={() => toggleGroup(groupProfileIds, !allSelected)}>
                       {allSelected ? '取消本组' : '选择本组'}
                     </Button>
                   </div>
@@ -188,6 +191,7 @@ export function ExtensionProfileLimitModal({ open, extension, allExtensions, onC
                       <label key={profile.profileId} className="flex items-start gap-3 px-3 py-2">
                         <input
                           type="checkbox"
+                          disabled={!restricted}
                           checked={selectedSet.has(profile.profileId)}
                           onChange={(event) => toggleProfile(profile.profileId, event.target.checked)}
                           className="mt-1 h-4 w-4 shrink-0 rounded accent-[var(--color-accent)]"
@@ -195,8 +199,7 @@ export function ExtensionProfileLimitModal({ open, extension, allExtensions, onC
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
                             <span>{profile.profileName || profile.profileId}</span>
-                            {profile.running ? <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-700">运行中</span> : null}
-                            {settingsByProfile[profile.profileId]?.configured ? <span className="rounded bg-[var(--color-bg-muted)] px-1.5 py-0.5 text-xs font-normal text-[var(--color-text-muted)]">已单独配置</span> : null}
+                            {profile.running ? <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">运行中 · 关闭后生效</span> : null}
                           </div>
                           <div className="mt-1 break-all font-mono text-xs text-[var(--color-text-muted)]">{profile.profileId}</div>
                         </div>

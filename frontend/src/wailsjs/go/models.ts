@@ -1,11 +1,11 @@
 export namespace automation {
-	
+
 	export class ScriptPublicAPIVariable {
 	    name: string;
 	    defaultValue: string;
 	    description: string;
 	    required: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ScriptPublicAPIVariable(source);
 	    }
@@ -1029,6 +1029,8 @@ export namespace browser {
 	    sourceUrl: string;
 	    installDir: string;
 	    enabled: boolean;
+	    scopeRestricted: boolean;
+	    scopeProfileCount: number;
 	    installedAt: string;
 	    updatedAt: string;
 	
@@ -1047,6 +1049,8 @@ export namespace browser {
 	        this.sourceUrl = source["sourceUrl"];
 	        this.installDir = source["installDir"];
 	        this.enabled = source["enabled"];
+	        this.scopeRestricted = source["scopeRestricted"];
+	        this.scopeProfileCount = source["scopeProfileCount"];
 	        this.installedAt = source["installedAt"];
 	        this.updatedAt = source["updatedAt"];
 	    }
@@ -1073,6 +1077,24 @@ export namespace browser {
 	        this.storeUrl = source["storeUrl"];
 	        this.installable = source["installable"];
 	        this.message = source["message"];
+	    }
+	}
+	export class ExtensionProfileScope {
+	    extensionId: string;
+	    restricted: boolean;
+	    profileIds: string[];
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ExtensionProfileScope(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extensionId = source["extensionId"];
+	        this.restricted = source["restricted"];
+	        this.profileIds = source["profileIds"];
+	        this.updatedAt = source["updatedAt"];
 	    }
 	}
 	export class Group {
@@ -1219,6 +1241,7 @@ export namespace browser {
 	    profileId: string;
 	    configured: boolean;
 	    extensionIds: string[];
+	    allowedExtensionIds: string[];
 	    updatedAt: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1230,6 +1253,7 @@ export namespace browser {
 	        this.profileId = source["profileId"];
 	        this.configured = source["configured"];
 	        this.extensionIds = source["extensionIds"];
+	        this.allowedExtensionIds = source["allowedExtensionIds"];
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}
@@ -1633,4 +1657,3 @@ export namespace proxy {
 	}
 
 }
-

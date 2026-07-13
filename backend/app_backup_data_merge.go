@@ -169,6 +169,28 @@ SELECT s.extension_id, s.name, s.version, s.description, s.manifest_json, s.sour
 FROM src.browser_extensions s
 WHERE NOT EXISTS (
   SELECT 1 FROM browser_extensions t WHERE t.extension_id = s.extension_id
+			)`,
+		},
+		{
+			name: "browser_extension_scope_settings",
+			insertAll: `INSERT INTO browser_extension_scope_settings (extension_id, restricted, updated_at)
+SELECT extension_id, restricted, updated_at FROM src.browser_extension_scope_settings`,
+			insertSafe: `INSERT INTO browser_extension_scope_settings (extension_id, restricted, updated_at)
+SELECT s.extension_id, s.restricted, s.updated_at
+FROM src.browser_extension_scope_settings s
+WHERE NOT EXISTS (
+  SELECT 1 FROM browser_extension_scope_settings t WHERE t.extension_id = s.extension_id
+)`,
+		},
+		{
+			name: "browser_extension_scope_profiles",
+			insertAll: `INSERT INTO browser_extension_scope_profiles (extension_id, profile_id, created_at, updated_at)
+SELECT extension_id, profile_id, created_at, updated_at FROM src.browser_extension_scope_profiles`,
+			insertSafe: `INSERT INTO browser_extension_scope_profiles (extension_id, profile_id, created_at, updated_at)
+SELECT s.extension_id, s.profile_id, s.created_at, s.updated_at
+FROM src.browser_extension_scope_profiles s
+WHERE NOT EXISTS (
+  SELECT 1 FROM browser_extension_scope_profiles t WHERE t.extension_id = s.extension_id AND t.profile_id = s.profile_id
 )`,
 		},
 		{

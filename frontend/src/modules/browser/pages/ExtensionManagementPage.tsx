@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { toast } from '../../../shared/components'
+import { ConfirmModal, toast } from '../../../shared/components'
 import type { BrowserExtension, BrowserExtensionLookupResult, BrowserProxy } from '../types'
 import {
   deleteBrowserExtension,
@@ -48,6 +48,7 @@ export function ExtensionManagementPage() {
   const [downloadDirOpen, setDownloadDirOpen] = useState(false)
   const [lastLookupProxyLabel, setLastLookupProxyLabel] = useState('')
   const [limitExtension, setLimitExtension] = useState<BrowserExtension | null>(null)
+  const [deleteCandidate, setDeleteCandidate] = useState<BrowserExtension | null>(null)
 
   const installedIds = useMemo(() => new Set(items.map((item) => item.extensionId)), [items])
   const selectedProxy = useMemo(
@@ -366,6 +367,7 @@ export function ExtensionManagementPage() {
     try {
       const updated = await setBrowserExtensionEnabled(item.extensionId, !item.enabled)
       setItems((current) => current.map((entry) => entry.extensionId === updated.extensionId ? updated : entry))
+      toast.success(`${updated.enabled ? '插件已启用' : '插件已停用'}，运行中的实例关闭后生效`)
     } catch (error: any) {
       toast.error(error?.message || '更新插件状态失败')
     } finally {
@@ -373,17 +375,23 @@ export function ExtensionManagementPage() {
     }
   }
 
-  const handleDelete = async (item: BrowserExtension) => {
-    if (!window.confirm(`删除插件「${item.name || item.extensionId}」？`)) return
+  const handleDelete = async () => {
+    const item = deleteCandidate
+    if (!item) return
     setBusyId(item.extensionId)
     try {
       await deleteBrowserExtension(item.extensionId)
-      setItems((current) => current.filter((entry) => entry.extensionId !== item.extensionId))
-      toast.success('插件已删除')
+      const remaining = await fetchBrowserExtensions()
+      if (remaining.some((entry) => entry.extensionId === item.extensionId)) {
+        throw new Error('插件删除未完成，请重试')
+      }
+      setItems(remaining)
+      toast.success('插件及实例内的插件数据已删除')
     } catch (error: any) {
       toast.error(error?.message || '删除插件失败')
     } finally {
       setBusyId('')
+      setDeleteCandidate(null)
     }
   }
 
@@ -467,8 +475,18 @@ export function ExtensionManagementPage() {
       <ExtensionProfileLimitModal
         open={!!limitExtension}
         extension={limitExtension}
-        allExtensions={items}
         onClose={() => setLimitExtension(null)}
+        onSaved={() => void refresh()}
+      />
+
+      <ConfirmModal
+        open={!!deleteCandidate}
+        onClose={() => setDeleteCandidate(null)}
+        onConfirm={() => void handleDelete()}
+        title="确认删除插件"
+        content={`确定要删除插件「${deleteCandidate?.name || deleteCandidate?.extensionId || ''}」吗？运行中的实例需要关闭后才会卸载。`}
+        confirmText="删除"
+        danger
       />
 
       <ManualInstallModal
@@ -523,7 +541,7 @@ export function ExtensionManagementPage() {
         onRestrictProfiles={setLimitExtension}
         onUpdate={(target) => void handleUpdateExtension(target)}
         onToggle={(target) => void handleToggle(target)}
-        onDelete={(target) => void handleDelete(target)}
+        onDelete={setDeleteCandidate}
       />
     </div>
 

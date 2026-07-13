@@ -1,4 +1,4 @@
-import type { BrowserExtension, BrowserExtensionLookupResult, BrowserProfileExtensionSettings } from '../types'
+import type { BrowserExtension, BrowserExtensionLookupResult, BrowserExtensionProfileScope, BrowserProfileExtensionSettings } from '../types'
 import { getBindings, getGoApp } from './runtime'
 
 export interface BrowserExtensionManualInstallGuide {
@@ -27,6 +27,8 @@ function normalizeExtension(payload: any): BrowserExtension {
     sourceUrl: String(payload?.sourceUrl || ''),
     installDir: String(payload?.installDir || ''),
     enabled: payload?.enabled !== false,
+    scopeRestricted: payload?.scopeRestricted === true,
+    scopeProfileCount: Number(payload?.scopeProfileCount || 0),
     installedAt: String(payload?.installedAt || ''),
     updatedAt: String(payload?.updatedAt || ''),
   }
@@ -186,6 +188,16 @@ function normalizeProfileSettings(payload: any): BrowserProfileExtensionSettings
     profileId: String(payload?.profileId || ''),
     configured: payload?.configured === true,
     extensionIds: Array.isArray(payload?.extensionIds) ? payload.extensionIds.map((item: unknown) => String(item || '')).filter(Boolean) : [],
+    allowedExtensionIds: Array.isArray(payload?.allowedExtensionIds) ? payload.allowedExtensionIds.map((item: unknown) => String(item || '')).filter(Boolean) : [],
+    updatedAt: String(payload?.updatedAt || ''),
+  }
+}
+
+function normalizeExtensionProfileScope(payload: any): BrowserExtensionProfileScope {
+  return {
+    extensionId: String(payload?.extensionId || ''),
+    restricted: payload?.restricted === true,
+    profileIds: Array.isArray(payload?.profileIds) ? payload.profileIds.map((item: unknown) => String(item || '')).filter(Boolean) : [],
     updatedAt: String(payload?.updatedAt || ''),
   }
 }
@@ -204,4 +216,20 @@ export async function saveBrowserProfileExtensionSettings(profileId: string, ext
     return normalizeProfileSettings(await bindings.BrowserProfileExtensionSave(profileId, extensionIds, configured))
   }
   throw new Error('当前环境不支持保存实例插件配置')
+}
+
+export async function fetchBrowserExtensionProfileScope(extensionId: string): Promise<BrowserExtensionProfileScope> {
+  const bindings: any = await getBindings()
+  if (bindings?.BrowserExtensionProfileScopeGet) {
+    return normalizeExtensionProfileScope(await bindings.BrowserExtensionProfileScopeGet(extensionId))
+  }
+  throw new Error('当前环境不支持插件实例限制')
+}
+
+export async function saveBrowserExtensionProfileScope(extensionId: string, profileIds: string[], restricted: boolean): Promise<BrowserExtensionProfileScope> {
+  const bindings: any = await getBindings()
+  if (bindings?.BrowserExtensionProfileScopeSave) {
+    return normalizeExtensionProfileScope(await bindings.BrowserExtensionProfileScopeSave(extensionId, profileIds, restricted))
+  }
+  throw new Error('当前环境不支持保存插件实例限制')
 }

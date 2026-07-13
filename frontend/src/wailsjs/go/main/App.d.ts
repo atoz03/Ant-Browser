@@ -130,6 +130,10 @@ export function BrowserExtensionManualInstallGuide(arg1:string):Promise<backend.
 
 export function BrowserExtensionOpenManualDownloadDir():Promise<void>;
 
+export function BrowserExtensionProfileScopeGet(arg1:string):Promise<browser.ExtensionProfileScope>;
+
+export function BrowserExtensionProfileScopeSave(arg1:string,arg2:Array<string>,arg3:boolean):Promise<browser.ExtensionProfileScope>;
+
 export function BrowserExtensionSetEnabled(arg1:string,arg2:boolean):Promise<browser.Extension>;
 
 export function BrowserGetAllTags():Promise<Array<string>>;

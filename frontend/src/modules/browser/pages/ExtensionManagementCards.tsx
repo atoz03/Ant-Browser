@@ -252,6 +252,7 @@ export function InstalledExtensionCard({ item, busy, updating, onRestrictProfile
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-[var(--color-text-primary)]">{item.name || item.extensionId}</span>
               <span className="rounded-full bg-[var(--color-bg-muted)] px-2 py-0.5 text-xs text-[var(--color-text-muted)]">{item.enabled ? '已启用' : '已停用'}</span>
+              {item.scopeRestricted ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">仅限 {item.scopeProfileCount} 个实例</span> : null}
               {item.version ? <span className="text-xs text-[var(--color-text-muted)]">v{item.version}</span> : null}
               {meta.manifestVersion ? <span className="text-xs text-[var(--color-text-muted)]">MV{meta.manifestVersion}</span> : null}
             </div>
@@ -291,7 +292,7 @@ export function InstalledExtensionCard({ item, busy, updating, onRestrictProfile
             <Power className="h-4 w-4" />
             {item.enabled ? '停用' : '启用'}
           </Button>
-          <Button type="button" size="sm" variant="secondary" onClick={() => onDelete(item)} loading={busy}>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onDelete(item)} loading={busy} disabled={busy}>
             <Trash2 className="h-4 w-4" />
             删除
           </Button>
