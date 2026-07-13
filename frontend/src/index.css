@@ -103,7 +103,7 @@ input, select, textarea {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.12s ease-out;
 }
 
 .animate-slide-up {
@@ -203,4 +203,13 @@ input, select, textarea {
 
 .animate-slide-in-bottom {
   animation: slideInBottom 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

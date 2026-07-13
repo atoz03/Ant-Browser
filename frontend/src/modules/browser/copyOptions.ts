@@ -14,29 +14,20 @@ export const BROWSER_PROFILE_AUTOMATION_TARGET_OPTIONS: BrowserProfileAutomation
   { value: 'seed', label: '指纹种子', detail: '生成新种子' },
   { value: 'identity', label: '浏览器身份', detail: '品牌 / 平台' },
   { value: 'locale', label: '语言与时区', detail: '语言 / 时区' },
-  { value: 'screen', label: '屏幕参数', detail: '分辨率 / 色深' },
-  { value: 'hardware', label: '硬件参数', detail: 'CPU / 内存' },
-  { value: 'render', label: '渲染特征', detail: 'Canvas / WebGL' },
-  { value: 'fonts', label: '字体', detail: '字体列表' },
-  { value: 'network', label: '网络隐私', detail: 'WebRTC / DNT' },
-  { value: 'devices', label: '设备数量', detail: '媒体设备 / 触摸点' },
+  { value: 'screen', label: '窗口尺寸', detail: '启动窗口大小' },
+  { value: 'hardware', label: '硬件参数', detail: 'CPU 核心数' },
+  { value: 'render', label: '自动伪装', detail: '字体 / Audio / Canvas / GPU' },
+  { value: 'network', label: '网络隐私', detail: 'WebRTC' },
 ]
 
 export const BROWSER_PROFILE_AUTOMATION_TARGET_PREFIXES: Record<BrowserProfileAutomationTarget, string[]> = {
   seed: ['--fingerprint'],
-  identity: ['--fingerprint-brand', '--fingerprint-platform'],
-  locale: ['--lang', '--timezone'],
-  screen: ['--window-size', '--fingerprint-color-depth'],
-  hardware: ['--fingerprint-hardware-concurrency', '--fingerprint-device-memory'],
-  render: [
-    '--fingerprint-canvas-noise',
-    '--fingerprint-webgl-vendor',
-    '--fingerprint-webgl-renderer',
-    '--fingerprint-audio-noise',
-  ],
-  fonts: ['--fingerprint-fonts'],
-  network: ['--webrtc-ip-handling-policy', '--fingerprint-do-not-track'],
-  devices: ['--fingerprint-media-devices', '--fingerprint-touch-points'],
+  identity: ['--fingerprint-brand', '--fingerprint-brand-version', '--fingerprint-platform', '--fingerprint-platform-version'],
+  locale: ['--lang', '--accept-lang', '--timezone'],
+  screen: ['--window-size'],
+  hardware: ['--fingerprint-hardware-concurrency'],
+  render: ['--disable-spoofing'],
+  network: ['--disable-non-proxied-udp', '--force-webrtc-ip-handling-policy'],
 }
 
 export const DEFAULT_BROWSER_PROFILE_AUTOMATION_TARGETS: BrowserProfileAutomationTarget[] = ['seed']

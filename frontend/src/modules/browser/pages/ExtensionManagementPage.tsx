@@ -21,6 +21,7 @@ import { ProxyPickerModal } from '../components/ProxyPickerModal'
 import { ExtensionInstallCard, ExtensionManagementHeader, InstalledExtensionsList } from './ExtensionManagementCards'
 import { DownloadDirectoryInstallModal, ExtensionHistoryModal, ExtensionProfileLimitModal, ManualInstallModal } from './ExtensionManagementModals'
 import { EXTENSION_HISTORY_LIMIT, buildChromeWebStoreQueryURL, createExtensionHistoryRecord, extensionStoreURL, loadExtensionDownloadProxyPreference, loadExtensionHistory, saveExtensionDownloadProxyPreference, saveExtensionHistory, type ExtensionHistoryRecord } from './extensionManagementUtils'
+import { openExternalURL } from '../../../shared/utils/openExternalURL'
 
 export function ExtensionManagementPage() {
   const [items, setItems] = useState<BrowserExtension[]>([])
@@ -147,7 +148,7 @@ export function ExtensionManagementPage() {
   }
 
   const handleOpenWebStoreQuery = () => {
-    window.open(buildChromeWebStoreQueryURL(query), '_blank', 'noopener,noreferrer')
+    openExternalURL(buildChromeWebStoreQueryURL(query))
   }
 
   const refreshManualFiles = async () => {

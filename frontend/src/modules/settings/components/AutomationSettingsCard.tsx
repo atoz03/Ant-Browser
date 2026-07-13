@@ -170,7 +170,7 @@ export function AutomationSettingsCard({
             <Input
               value={automationSystemNodePathDraft}
               onChange={event => onSystemNodePathDraftChange(event.target.value)}
-              placeholder="例如 C:\\Program Files\\nodejs\\node.exe"
+              placeholder="例如 /opt/homebrew/bin/node 或 C:\\Program Files\\nodejs\\node.exe"
               disabled={automationBusy !== 'none' || automationNodeSourceDraft === 'bundled'}
             />
           </FormItem>

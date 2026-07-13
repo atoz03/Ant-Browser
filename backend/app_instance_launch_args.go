@@ -123,6 +123,7 @@ func (a *App) markProfileStoppedLocked(profileId string, profile *BrowserProfile
 	profile.RuntimeWarning = ""
 	profile.LastStopAt = time.Now().Format(time.RFC3339)
 	delete(a.browserMgr.BrowserProcesses, profileId)
+	a.stopProfileLocaleOverride(profileId)
 	a.clearDeferredStartTargets(profileId)
 	a.releaseProfileProxyBridge(profileId)
 	if a.launchServer != nil {

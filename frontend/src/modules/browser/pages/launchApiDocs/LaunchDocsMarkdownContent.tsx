@@ -1,8 +1,8 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { FolderOpen } from 'lucide-react'
-import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime'
 import { Button, toast } from '../../../../shared/components'
+import { openExternalURL } from '../../../../shared/utils/openExternalURL'
 import { openProjectRoot } from '../../api/filesystem'
 import { LaunchDocsCodeBlock } from './LaunchDocsCodeBlock'
 
@@ -12,7 +12,7 @@ export function LaunchDocsMarkdownContent({ content, docId }: { content: string;
   return (
     <div className="space-y-4">
       {showProjectRootAction ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] px-4 py-3 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] px-4 py-3 shadow-[var(--shadow-sm)]">
           <span className="text-sm text-[var(--color-text-secondary)]">
             安装命令默认相对项目根目录执行。
           </span>
@@ -119,7 +119,7 @@ export function LaunchDocsMarkdownContent({ content, docId }: { content: string;
               onClick={(event) => {
                 event.preventDefault()
                 if (href) {
-                  BrowserOpenURL(href)
+                  openExternalURL(href)
                 }
               }}
               className="text-[var(--color-accent)] hover:underline cursor-pointer"

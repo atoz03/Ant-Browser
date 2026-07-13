@@ -36,9 +36,7 @@ logging:
             - secret
 browser:
     user_data_root: data
-    default_fingerprint_args:
-        - --fingerprint-brand=Chrome
-        - --fingerprint-platform=windows
+    default_fingerprint_args: []
     default_launch_args:
         - --disable-sync
         - --no-first-run

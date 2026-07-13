@@ -201,7 +201,7 @@ func (a *App) emitBrowserCoreImportProgress(phase string, progress int, message 
 
 func coreNameFromArchiveName(name string) string {
 	name = strings.TrimSpace(name)
-	for _, suffix := range []string{".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".txz", ".tbz2", ".zip", ".tar"} {
+	for _, suffix := range []string{".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".txz", ".tbz2", ".zip", ".tar", ".dmg"} {
 		if strings.HasSuffix(strings.ToLower(name), suffix) {
 			return strings.TrimSpace(name[:len(name)-len(suffix)])
 		}

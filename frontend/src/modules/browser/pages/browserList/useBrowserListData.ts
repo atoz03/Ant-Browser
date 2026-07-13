@@ -15,6 +15,7 @@ export function useBrowserListData({ loadCores }: UseBrowserListDataOptions) {
   const [startingIds, setStartingIds] = useState<Set<string>>(new Set())
   const [stoppingIds, setStoppingIds] = useState<Set<string>>(new Set())
   const profilesRef = useRef<BrowserProfile[]>([])
+  const profilesSnapshotRef = useRef('[]')
   const silentRefreshInFlightRef = useRef(false)
 
   const updatePendingIds = (
@@ -34,12 +35,16 @@ export function useBrowserListData({ loadCores }: UseBrowserListDataOptions) {
   }
 
   const replaceProfilesState = (items: BrowserProfile[]) => {
+    const snapshot = JSON.stringify(items)
+    if (snapshot === profilesSnapshotRef.current) return
+    profilesSnapshotRef.current = snapshot
     profilesRef.current = items
     setProfiles(items)
   }
 
   const updateProfilesState = (updater: (items: BrowserProfile[]) => BrowserProfile[]) => {
     const next = updater(profilesRef.current)
+    profilesSnapshotRef.current = JSON.stringify(next)
     profilesRef.current = next
     setProfiles(next)
   }
@@ -132,10 +137,15 @@ export function useBrowserListData({ loadCores }: UseBrowserListDataOptions) {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
       void loadProfiles({ silent: true, syncRuntimeState: true })
-    }, 2000)
+    }, 15000)
+    const handleFocus = () => {
+      void loadProfiles({ silent: true, syncRuntimeState: true })
+    }
+    window.addEventListener('focus', handleFocus)
 
     return () => {
       window.clearInterval(timer)
+      window.removeEventListener('focus', handleFocus)
       offStarted?.()
       offUpdated?.()
       offStopped?.()

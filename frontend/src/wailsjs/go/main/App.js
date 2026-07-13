@@ -162,6 +162,10 @@ export function BrowserCoreImportLocal() {
   return window['go']['main']['App']['BrowserCoreImportLocal']();
 }
 
+export function BrowserCoreImportLocalDirectory() {
+  return window['go']['main']['App']['BrowserCoreImportLocalDirectory']();
+}
+
 export function BrowserCoreList() {
   return window['go']['main']['App']['BrowserCoreList']();
 }

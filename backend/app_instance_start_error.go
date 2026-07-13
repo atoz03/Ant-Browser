@@ -49,14 +49,14 @@ func describeChromeProcessStartError(chromeBinaryPath string, err error) string 
 	case strings.Contains(lower, "access is denied"),
 		strings.Contains(lower, "permission denied"),
 		strings.Contains(raw, "拒绝访问"):
-		return fmt.Sprintf("实例启动失败：系统拒绝启动浏览器进程。可执行文件：%s。请检查文件权限、杀毒软件拦截，或尝试以管理员身份运行。", chromeBinaryPath)
+		return fmt.Sprintf("实例启动失败：系统拒绝启动浏览器进程。可执行文件：%s。请检查文件执行权限和安全软件拦截；macOS 还需检查安全隔离属性。", chromeBinaryPath)
 	case strings.Contains(lower, "not a valid win32 application"),
 		strings.Contains(raw, "不是有效的 win32 应用程序"),
 		strings.Contains(raw, "不是有效的 Win32 应用程序"),
 		strings.Contains(raw, "bad exe format"),
 		strings.Contains(lower, "exec format error"),
 		strings.Contains(lower, "cannot execute binary file"):
-		return fmt.Sprintf("实例启动失败：当前浏览器内核与系统/架构不兼容。可执行文件：%s。请确认 Linux 环境使用的是对应架构的 Chrome 内核，而不是 Windows 可执行文件。", chromeBinaryPath)
+		return fmt.Sprintf("实例启动失败：当前浏览器内核与系统或 CPU 架构不兼容。可执行文件：%s。请下载与当前 macOS、Linux 或 Windows 平台及架构匹配的内核。", chromeBinaryPath)
 	case strings.Contains(raw, "系统找不到指定的文件"),
 		strings.Contains(lower, "file not found"),
 		strings.Contains(lower, "no such file"),

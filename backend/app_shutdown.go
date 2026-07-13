@@ -55,7 +55,12 @@ func platformSupportsTrayCloseFlow() bool {
 }
 
 func platformSupportsTrayCloseFlowForOS(goos string) bool {
-	return strings.EqualFold(strings.TrimSpace(goos), "windows")
+	switch strings.ToLower(strings.TrimSpace(goos)) {
+	case "windows", "darwin":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *App) setQuitMode(mode quitMode) {

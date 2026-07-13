@@ -21,7 +21,8 @@ export function LaunchDocsFlowPage({ baseUrl }: LaunchDocsFlowPageProps) {
       path: '指纹浏览器 -> 内核管理 -> 下载内核 -> 设为默认',
       example: `chrome/
   chrome-<version>/
-    chrome.exe`,
+    Chromium.app        # macOS
+    chrome / chrome.exe # Linux / Windows`,
     },
     {
       step: '02',

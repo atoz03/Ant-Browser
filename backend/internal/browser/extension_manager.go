@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	extensionDownloadTimeout = 90 * time.Second
-	extensionMaxPackageBytes = 128 << 20
-	extensionsRootDir        = "extensions"
+	extensionDownloadTimeout  = 90 * time.Second
+	extensionMaxPackageBytes  = 128 << 20
+	extensionsRootDir         = "extensions"
+	extensionStoreProdVersion = "148.0.0.0"
 )
 
 func ExtensionDownloadTimeout() time.Duration {
@@ -59,7 +60,7 @@ func BuildChromeExtensionDownloadURL(extensionID string) string {
 	if normalizedID == "" {
 		return ""
 	}
-	return "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=120.0.0.0&acceptformat=crx2,crx3&x=id%3D" + normalizedID + "%26installsource%3Dondemand%26uc"
+	return "https://clients2.google.com/service/update2/crx?response=redirect&prod=chromiumcrx&prodversion=" + extensionStoreProdVersion + "&acceptformat=crx2,crx3&x=id%3D" + normalizedID + "%26installsource%3Dondemand%26uc"
 }
 
 func (m *Manager) LookupExtension(query string) (ExtensionLookupResult, error) {
@@ -152,6 +153,9 @@ func (m *Manager) InstallExtensionPackageBytes(extensionID string, sourceURL str
 	}
 
 	resolvedID := NormalizeExtensionID(extensionID)
+	if resolvedID == "" {
+		resolvedID = extensionIDFromPackage(data)
+	}
 	if resolvedID == "" {
 		resolvedID = extensionIDFromManifest(manifestData)
 	}

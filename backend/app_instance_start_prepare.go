@@ -136,7 +136,7 @@ func (a *App) prepareBrowserStartPlan(input browserStartInput, profile *BrowserP
 	maxStartAttempts := browserStartAttemptCount()
 	totalReadyTimeout := time.Duration(maxStartAttempts) * startReadyTimeout
 	restoreLastSession := browserRestoreLastSession(a.config)
-	extensionDirs := a.browserMgr.EnabledExtensionDirsForProfile(input.ProfileID)
+	extensionDirs := a.browserMgr.LaunchExtensionDirsForProfile(input.ProfileID, userDataDir)
 	defaultStartURLs := mergeStartURLs(browserDefaultStartURLs(a.config), bookmarkStartURLs(bookmarks))
 	launchTargets, deferredStartTargets := buildBrowserLaunchTargets(
 		input.StartURLs,
@@ -145,6 +145,15 @@ func (a *App) prepareBrowserStartPlan(input browserStartInput, profile *BrowserP
 		restoreLastSession,
 		browserLightStartEnabled(a.config),
 	)
+	// macOS 的 ICU locale 只能通过 CDP 在导航前覆盖。即使关闭了轻启动，
+	// 也要先停在 about:blank，待接管完成后再创建真实启动页。
+	if requiresLocaleOverrideBeforeNavigation(profile.FingerprintArgs) && len(deferredStartTargets) == 0 {
+		configuredTargets := resolveConfiguredStartTargets(input.StartURLs, defaultStartURLs, input.SkipDefaultStartURLs)
+		if len(configuredTargets) > 0 {
+			launchTargets = []string{"about:blank"}
+			deferredStartTargets = configuredTargets
+		}
+	}
 
 	assignedDebugPort, err := nextAvailablePort()
 	if err != nil {
@@ -279,22 +288,16 @@ func buildBrowserLaunchArgs(profile *BrowserProfile, userDataDir string, debugPo
 		"--disable-session-crashed-bubble",
 	}
 
+	fingerprintArgs := normalizeFingerprintLaunchArgs(profile.FingerprintArgs)
 	hasFingerprint := false
-	for _, arg := range profile.FingerprintArgs {
+	for _, arg := range fingerprintArgs {
 		if strings.HasPrefix(arg, "--fingerprint=") {
 			hasFingerprint = true
 			break
 		}
 	}
 	if !hasFingerprint {
-		seed := 0
-		for _, char := range profile.ProfileId {
-			seed = (seed << 5) - seed + int(char)
-		}
-		if seed < 0 {
-			seed = -seed
-		}
-		args = append(args, fmt.Sprintf("--fingerprint=%d", seed))
+		args = append(args, fmt.Sprintf("--fingerprint=%d", deterministicFingerprintSeed(profile.ProfileId)))
 	}
 
 	if effectiveProxy == "direct://" {
@@ -308,7 +311,7 @@ func buildBrowserLaunchArgs(profile *BrowserProfile, userDataDir string, debugPo
 		args = append(args, fmt.Sprintf("--load-extension=%s", extensionArg))
 	}
 
-	args = append(args, profile.FingerprintArgs...)
+	args = append(args, fingerprintArgs...)
 	args = append(args, sanitizedProfileLaunchArgs...)
 	args = append(args, sanitizedExtraLaunchArgs...)
 	return browser.BuildLaunchArgs(args, launchTargets)

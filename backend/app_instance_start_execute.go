@@ -45,13 +45,23 @@ func (a *App) startBrowserProfileWithPlan(input browserStartInput, plan *browser
 	for attempt := 1; attempt <= plan.maxStartAttempts; attempt++ {
 		stableDebugPort, readyErr := waitBrowserDebugPortStable(plan.assignedDebugPort, plan.userDataDir, plan.startReadyTimeout, plan.startStableWindow, monitor)
 		if readyErr == nil {
-			a.markProfileRunningLocked(input.ProfileID, profile, cmd, cmd.Process.Pid, stableDebugPort, true, "")
+			localeReady := a.markProfileRunningLocked(input.ProfileID, profile, cmd, cmd.Process.Pid, stableDebugPort, true, "")
 			if plan.acquiredProxyBridge.valid() {
 				a.bindProfileProxyBridge(input.ProfileID, plan.acquiredProxyBridge)
 				plan.releaseProxyBridge = false
 			}
 			if len(plan.deferredStartTargets) > 0 {
-				if err := openBrowserStartTargets(stableDebugPort, plan.deferredStartTargets); err != nil {
+				openStartTargets := openBrowserStartTargets
+				if requiresLocaleOverrideBeforeNavigation(profile.FingerprintArgs) {
+					if !waitForLocaleOverrideReady(localeReady) {
+						log.Warn("语言接口未在启动页导航前就绪，继续打开启动页",
+							logger.F("profile_id", input.ProfileID),
+							logger.F("debug_port", stableDebugPort),
+						)
+					}
+					openStartTargets = openBrowserStartTargetsWithLocaleOverride
+				}
+				if err := openStartTargets(stableDebugPort, plan.deferredStartTargets); err != nil {
 					warning := deferredStartTargetsWarning(plan.deferredStartTargets, err)
 					profile.RuntimeWarning = warning
 					profile.LastError = ""

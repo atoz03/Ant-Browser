@@ -30,7 +30,7 @@ func (m *Manager) GetChromeVersion(corePath string) string {
 				return version
 			}
 		}
-		return ""
+		return readPlatformCoreVersion(baseDir)
 	}
 
 	// 解析 JSON

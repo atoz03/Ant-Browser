@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 func extractExtensionIDFromURL(rawURL string) string {
@@ -482,7 +485,77 @@ func readZipFile(file *zip.File, limit int64) ([]byte, error) {
 
 func extensionIDFromManifest(manifestData []byte) string {
 	sum := sha256.Sum256(manifestData)
-	hexValue := hex.EncodeToString(sum[:16])
+	return extensionIDFromHash(sum[:16])
+}
+
+func extensionIDFromPackage(data []byte) string {
+	if len(data) < 12 || !bytes.Equal(data[:4], []byte("Cr24")) {
+		return ""
+	}
+	switch binary.LittleEndian.Uint32(data[4:8]) {
+	case 2:
+		if len(data) < 16 {
+			return ""
+		}
+		publicKeyLength := int(binary.LittleEndian.Uint32(data[8:12]))
+		if publicKeyLength <= 0 || publicKeyLength > len(data)-16 {
+			return ""
+		}
+		sum := sha256.Sum256(data[16 : 16+publicKeyLength])
+		return extensionIDFromHash(sum[:16])
+	case 3:
+		headerLength := int(binary.LittleEndian.Uint32(data[8:12]))
+		if headerLength <= 0 || headerLength > len(data)-12 {
+			return ""
+		}
+		return extensionIDFromCRX3Header(data[12 : 12+headerLength])
+	default:
+		return ""
+	}
+}
+
+func extensionIDFromCRX3Header(header []byte) string {
+	for len(header) > 0 {
+		number, wireType, tagLength := protowire.ConsumeTag(header)
+		if tagLength < 0 {
+			return ""
+		}
+		header = header[tagLength:]
+		fieldLength := protowire.ConsumeFieldValue(number, wireType, header)
+		if fieldLength < 0 || fieldLength > len(header) {
+			return ""
+		}
+		if number == 10000 && wireType == protowire.BytesType {
+			signedData, bytesLength := protowire.ConsumeBytes(header)
+			if bytesLength < 0 {
+				return ""
+			}
+			for len(signedData) > 0 {
+				signedNumber, signedType, signedTagLength := protowire.ConsumeTag(signedData)
+				if signedTagLength < 0 {
+					return ""
+				}
+				signedData = signedData[signedTagLength:]
+				signedFieldLength := protowire.ConsumeFieldValue(signedNumber, signedType, signedData)
+				if signedFieldLength < 0 || signedFieldLength > len(signedData) {
+					return ""
+				}
+				if signedNumber == 1 && signedType == protowire.BytesType {
+					crxID, idLength := protowire.ConsumeBytes(signedData)
+					if idLength >= 0 && len(crxID) == 16 {
+						return extensionIDFromHash(crxID)
+					}
+				}
+				signedData = signedData[signedFieldLength:]
+			}
+		}
+		header = header[fieldLength:]
+	}
+	return ""
+}
+
+func extensionIDFromHash(hash []byte) string {
+	hexValue := hex.EncodeToString(hash)
 	var builder strings.Builder
 	for _, char := range hexValue {
 		if char >= '0' && char <= '9' {

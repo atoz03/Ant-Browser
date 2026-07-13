@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Card } from '../../shared/components'
 import { createDefaultProfilePageData, loadProfilePageData } from './api'
 import type { IconKey, ProfilePageData } from './types'
+import { openExternalURL } from '../../shared/utils/openExternalURL'
 
 const ICON_MAP = {
   'book-open': BookOpen,
@@ -50,10 +51,6 @@ export function ProfilePage() {
       active = false
     }
   }, [])
-
-  const openExternal = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
 
   const authorInfo = pageData.author
   const projectInfo = pageData.project
@@ -102,7 +99,7 @@ export function ProfilePage() {
                   <button
                     type="button"
                     className="inline-flex items-center gap-1.5 text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent)]"
-                    onClick={() => openExternal(authorInfo.website)}
+                    onClick={() => openExternalURL(authorInfo.website)}
                   >
                     <Globe className="h-4 w-4" />
                     {stripProtocol(authorInfo.website)}
@@ -117,7 +114,7 @@ export function ProfilePage() {
               <Button
                 variant="ghost"
                 className="h-11 rounded-2xl border border-transparent px-4 text-[var(--color-text-primary)] hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-muted)]"
-                onClick={() => openExternal(authorInfo.github)}
+                onClick={() => openExternalURL(authorInfo.github)}
               >
                 <Github className="h-4 w-4" />
                 GitHub
@@ -165,6 +162,10 @@ export function ProfilePage() {
               target="_blank"
               rel="noopener noreferrer"
               className="block h-full"
+              onClick={(event) => {
+                event.preventDefault()
+                openExternalURL(channel.href!)
+              }}
             >
               {content}
             </a>
@@ -212,7 +213,7 @@ export function ProfilePage() {
                   key={action.label}
                   variant="ghost"
                   className="h-10 rounded-xl border border-[var(--color-border-default)] px-3 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]"
-                  onClick={() => openExternal(action.href)}
+                  onClick={() => openExternalURL(action.href)}
                 >
                   <Icon className="h-4 w-4" />
                   {action.label}

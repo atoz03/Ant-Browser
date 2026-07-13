@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
-import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime'
 import { Button, FormItem, Input, Modal, Select, toast } from '../../../../shared/components'
+import { openExternalURL } from '../../../../shared/utils/openExternalURL'
 import { browserProxyCoreDownloadInfo, browserProxyCoreOpenLocal } from '../../api'
 import type { ProxyCoreDownloadInfoResult, ProxyCoreDownloadProgress, ProxyCoreStatusResult } from '../../types'
 
@@ -56,7 +56,7 @@ export function ProxyCoreDownloadModal({
         toast.error(info.message || '没有可打开的远程地址')
         return
       }
-      BrowserOpenURL(url)
+      openExternalURL(url)
       if (!info.downloadUrl && info.message) toast.info(info.message)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '打开远程地址失败')

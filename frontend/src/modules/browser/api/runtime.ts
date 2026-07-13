@@ -19,7 +19,7 @@ export function nowISOString(): string {
 export function createDefaultBrowserSettings(): BrowserSettings {
   return {
     userDataRoot: 'data',
-    defaultFingerprintArgs: [],
+    defaultFingerprintArgs: defaultFingerprintArgsForHost(),
     defaultLaunchArgs: [],
     defaultStartUrls: [],
     lightStartEnabled: true,
@@ -36,7 +36,7 @@ let mockProfiles: BrowserProfile[] = [
     profileName: '默认指纹配置',
     userDataDir: 'data/default',
     coreId: 'default',
-    fingerprintArgs: ['--fingerprint-brand=Chrome', '--fingerprint-platform=windows'],
+    fingerprintArgs: defaultFingerprintArgsForHost(),
     proxyId: '',
     proxyConfig: '',
     launchArgs: ['--disable-features=Translate'],
@@ -52,6 +52,15 @@ let mockProfiles: BrowserProfile[] = [
     updatedAt: nowISOString(),
   },
 ]
+
+function defaultFingerprintArgsForHost(): string[] {
+  const platform = navigator.platform.toLowerCase().includes('mac')
+    ? 'macos'
+    : navigator.platform.toLowerCase().includes('linux')
+      ? 'linux'
+      : 'windows'
+  return ['--fingerprint-brand=Chrome', `--fingerprint-platform=${platform}`]
+}
 
 let mockCores: BrowserCore[] = []
 let mockProxies: BrowserProxy[] = []

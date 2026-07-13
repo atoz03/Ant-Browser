@@ -119,6 +119,10 @@ func normalizeConfig(config *Config) {
 	if len(config.Browser.DefaultFingerprintArgs) == 0 {
 		config.Browser.DefaultFingerprintArgs = append([]string{}, defaultConfig.Browser.DefaultFingerprintArgs...)
 	}
+	config.Browser.DefaultFingerprintArgs = normalizeLegacyFingerprintPlatforms(config.Browser.DefaultFingerprintArgs)
+	for index := range config.Browser.Profiles {
+		config.Browser.Profiles[index].FingerprintArgs = normalizeLegacyFingerprintPlatforms(config.Browser.Profiles[index].FingerprintArgs)
+	}
 	if len(config.Browser.DefaultLaunchArgs) == 0 {
 		config.Browser.DefaultLaunchArgs = append([]string{}, defaultConfig.Browser.DefaultLaunchArgs...)
 	}
@@ -233,6 +237,7 @@ func isLegacyVerificationStartURLs(urls []string) bool {
 
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
+	windowConfig := defaultWindowConfigForOS(goruntime.GOOS)
 	return &Config{
 		Database: DatabaseConfig{
 			Type: "sqlite",
@@ -241,13 +246,8 @@ func DefaultConfig() *Config {
 			},
 		},
 		App: AppConfig{
-			Name: "Ant Browser",
-			Window: WindowConfig{
-				Width:     1750,
-				Height:    1000,
-				MinWidth:  1200,
-				MinHeight: 700,
-			},
+			Name:   "Ant Browser",
+			Window: windowConfig,
 		},
 		Runtime: RuntimeConfig{
 			MaxMemoryMB: 0,
@@ -316,15 +316,33 @@ func DefaultConfig() *Config {
 	}
 }
 
+func defaultWindowConfigForOS(goos string) WindowConfig {
+	if strings.EqualFold(strings.TrimSpace(goos), "darwin") {
+		return WindowConfig{Width: 1280, Height: 820, MinWidth: 1000, MinHeight: 650}
+	}
+	return WindowConfig{Width: 1750, Height: 1000, MinWidth: 1200, MinHeight: 700}
+}
+
 func defaultFingerprintArgsForOS(goos string) []string {
 	platform := "windows"
 	switch strings.ToLower(strings.TrimSpace(goos)) {
 	case "darwin":
-		platform = "mac"
+		platform = "macos"
 	case "linux":
 		platform = "linux"
 	}
 	return []string{"--fingerprint-brand=Chrome", "--fingerprint-platform=" + platform}
+}
+
+func normalizeLegacyFingerprintPlatforms(args []string) []string {
+	normalized := append([]string{}, args...)
+	for index, arg := range normalized {
+		value := strings.ToLower(strings.TrimSpace(arg))
+		if value == "--fingerprint-platform=mac" || value == "--fingerprint-platform=darwin" || value == "--fingerprint-platform=osx" {
+			normalized[index] = "--fingerprint-platform=macos"
+		}
+	}
+	return normalized
 }
 func DefaultAutomationRuntimeVersion(nodeVersion, playwrightVersion string) string {
 	return fmt.Sprintf("node-%s-playwright-core-%s", strings.TrimSpace(nodeVersion), strings.TrimSpace(playwrightVersion))

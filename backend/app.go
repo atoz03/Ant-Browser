@@ -46,6 +46,8 @@ type App struct {
 	deferredStartTargets   map[string][]string
 	automationTargetMu     sync.Mutex
 	automationTargetCursor map[string]string
+	localeOverrideMu       sync.Mutex
+	localeOverrideCancels  map[string]context.CancelFunc
 	stopServicesOnce       sync.Once
 	finalizeOnce           sync.Once
 }
@@ -62,6 +64,7 @@ func NewApp(appRoot string, appVersion ...string) *App {
 		profileBridgeRefs:      make(map[string]profileProxyBridgeRef),
 		deferredStartTargets:   make(map[string][]string),
 		automationTargetCursor: make(map[string]string),
+		localeOverrideCancels:  make(map[string]context.CancelFunc),
 	}
 }
 

@@ -5,10 +5,10 @@ database:
 app:
   name: Ant Browser
   window:
-    width: 1750
-    height: 1000
-    min_width: 1200
-    min_height: 700
+    width: 1280
+    height: 820
+    min_width: 1000
+    min_height: 650
 runtime:
   max_memory_mb: 0
   gc_percent: 100
@@ -38,7 +38,7 @@ browser:
   user_data_root: data
   default_fingerprint_args:
     - --fingerprint-brand=Chrome
-    - --fingerprint-platform=mac
+    - --fingerprint-platform=macos
   default_launch_args:
     - --disable-sync
     - --no-first-run

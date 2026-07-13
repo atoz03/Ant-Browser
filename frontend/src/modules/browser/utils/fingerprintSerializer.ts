@@ -18,37 +18,24 @@ export interface FingerprintConfig {
 
   // 基础身份
   brand?: string           // --fingerprint-brand=
+  brandVersion?: string    // --fingerprint-brand-version=
   platform?: string        // --fingerprint-platform=
+  platformVersion?: string // --fingerprint-platform-version=
   lang?: string            // --lang=
   timezone?: string        // --timezone=
 
   // 屏幕与窗口
   resolution?: string      // --window-size=（预设值或 'custom'）
   customResolution?: string // 当 resolution === 'custom' 时使用
-  colorDepth?: string      // --fingerprint-color-depth=
 
   // 硬件信息
   hardwareConcurrency?: string  // --fingerprint-hardware-concurrency=
-  deviceMemory?: string         // --fingerprint-device-memory=
 
-  // 渲染指纹
-  canvasNoise?: boolean         // --fingerprint-canvas-noise=
-  webglVendor?: string          // --fingerprint-webgl-vendor=
-  webglRenderer?: string        // --fingerprint-webgl-renderer=
-  audioNoise?: boolean          // --fingerprint-audio-noise=
-
-  // 字体
-  fonts?: string                // --fingerprint-fonts=
+  // 关闭指定的自动指纹伪装；未关闭的项目由 seed 自动生成
+  disabledSpoofing?: string[]   // --disable-spoofing=font,audio,canvas,clientrects,gpu
 
   // 网络与隐私
-  webrtcPolicy?: string         // --webrtc-ip-handling-policy=
-  doNotTrack?: boolean          // --fingerprint-do-not-track=
-
-  // 媒体设备
-  mediaDevices?: string         // --fingerprint-media-devices= (格式: "2,1,0" 摄像头,麦克风,扬声器)
-
-  // 触摸
-  touchPoints?: string          // --fingerprint-touch-points=
+  disableNonProxiedUDP?: boolean // --disable-non-proxied-udp
 
   unknownArgs?: string[]        // 无法识别的原始参数，原样保留
 }
@@ -59,22 +46,13 @@ export const PRESET_RESOLUTIONS = ['1920,1080', '1440,900', '1366,768', '2560,14
 export const KEY_MAP: Record<string, keyof FingerprintConfig> = {
   '--fingerprint': 'seed',
   '--fingerprint-brand': 'brand',
+  '--fingerprint-brand-version': 'brandVersion',
   '--fingerprint-platform': 'platform',
+  '--fingerprint-platform-version': 'platformVersion',
   '--lang': 'lang',
   '--timezone': 'timezone',
   '--window-size': 'resolution',
-  '--fingerprint-color-depth': 'colorDepth',
   '--fingerprint-hardware-concurrency': 'hardwareConcurrency',
-  '--fingerprint-device-memory': 'deviceMemory',
-  '--fingerprint-canvas-noise': 'canvasNoise',
-  '--fingerprint-webgl-vendor': 'webglVendor',
-  '--fingerprint-webgl-renderer': 'webglRenderer',
-  '--fingerprint-audio-noise': 'audioNoise',
-  '--fingerprint-fonts': 'fonts',
-  '--webrtc-ip-handling-policy': 'webrtcPolicy',
-  '--fingerprint-do-not-track': 'doNotTrack',
-  '--fingerprint-media-devices': 'mediaDevices',
-  '--fingerprint-touch-points': 'touchPoints',
 }
 
 // FingerprintConfig → string[]
@@ -82,8 +60,13 @@ export function serialize(config: FingerprintConfig): string[] {
   const args: string[] = []
   if (config.seed) args.push(`--fingerprint=${config.seed}`)
   if (config.brand) args.push(`--fingerprint-brand=${config.brand}`)
-  if (config.platform) args.push(`--fingerprint-platform=${config.platform}`)
-  if (config.lang) args.push(`--lang=${config.lang}`)
+  if (config.brandVersion) args.push(`--fingerprint-brand-version=${config.brandVersion}`)
+  if (config.platform) args.push(`--fingerprint-platform=${normalizePlatform(config.platform)}`)
+  if (config.platformVersion) args.push(`--fingerprint-platform-version=${config.platformVersion}`)
+  if (config.lang) {
+    args.push(`--lang=${config.lang}`)
+    args.push(`--accept-lang=${preferredAcceptLanguages(config.lang)}`)
+  }
   if (config.timezone) {
     // 如果是 system，替换为实际系统时区
     const tz = config.timezone === 'system' ? getSystemTimezone() : config.timezone
@@ -93,21 +76,10 @@ export function serialize(config: FingerprintConfig): string[] {
   const res = config.resolution === 'custom' ? config.customResolution : config.resolution
   if (res) args.push(`--window-size=${res}`)
 
-  if (config.colorDepth) args.push(`--fingerprint-color-depth=${config.colorDepth}`)
   if (config.hardwareConcurrency) args.push(`--fingerprint-hardware-concurrency=${config.hardwareConcurrency}`)
-  if (config.deviceMemory) args.push(`--fingerprint-device-memory=${config.deviceMemory}`)
-
-  if (config.canvasNoise !== undefined) args.push(`--fingerprint-canvas-noise=${config.canvasNoise}`)
-  if (config.webglVendor) args.push(`--fingerprint-webgl-vendor=${config.webglVendor}`)
-  if (config.webglRenderer) args.push(`--fingerprint-webgl-renderer=${config.webglRenderer}`)
-  if (config.audioNoise !== undefined) args.push(`--fingerprint-audio-noise=${config.audioNoise}`)
-
-  if (config.fonts) args.push(`--fingerprint-fonts=${config.fonts}`)
-
-  if (config.webrtcPolicy) args.push(`--webrtc-ip-handling-policy=${config.webrtcPolicy}`)
-  if (config.doNotTrack !== undefined) args.push(`--fingerprint-do-not-track=${config.doNotTrack}`)
-  if (config.mediaDevices) args.push(`--fingerprint-media-devices=${config.mediaDevices}`)
-  if (config.touchPoints) args.push(`--fingerprint-touch-points=${config.touchPoints}`)
+  const disabledSpoofing = Array.from(new Set(config.disabledSpoofing || [])).filter(Boolean).sort()
+  if (disabledSpoofing.length > 0) args.push(`--disable-spoofing=${disabledSpoofing.join(',')}`)
+  if (config.disableNonProxiedUDP) args.push('--disable-non-proxied-udp')
 
   return [...args, ...(config.unknownArgs ?? [])]
 }
@@ -117,6 +89,10 @@ export function deserialize(args: string[]): FingerprintConfig {
   const config: FingerprintConfig = { unknownArgs: [] }
 
   for (const arg of args) {
+    if (arg === '--disable-non-proxied-udp') {
+      config.disableNonProxiedUDP = true
+      continue
+    }
     const eqIdx = arg.indexOf('=')
     if (eqIdx === -1) {
       config.unknownArgs!.push(arg)
@@ -126,14 +102,41 @@ export function deserialize(args: string[]): FingerprintConfig {
     const val = arg.slice(eqIdx + 1)
     const field = KEY_MAP[key]
 
+    if (key === '--disable-spoofing') {
+      config.disabledSpoofing = val.split(',').map(value => value.trim()).filter(Boolean)
+      continue
+    }
+    if (key === '--accept-lang') {
+      continue
+    }
+    if (key === '--fingerprint-platform' && ['mac', 'darwin', 'osx'].includes(val.toLowerCase())) {
+      config.platform = 'macos'
+      continue
+    }
+    if (key === '--webrtc-ip-handling-policy') {
+      if (val === 'disable_non_proxied_udp') {
+        config.disableNonProxiedUDP = true
+      } else if (val) {
+        config.unknownArgs!.push(`--force-webrtc-ip-handling-policy=${val}`)
+      }
+      continue
+    }
+    if (key === '--fingerprint-canvas-noise' || key === '--fingerprint-audio-noise') {
+      if (val === 'false') {
+        const category = key.includes('canvas') ? 'canvas' : 'audio'
+        config.disabledSpoofing = [...(config.disabledSpoofing || []), category]
+      }
+      continue
+    }
+    if (isRetiredFingerprintKey(key)) {
+      continue
+    }
     if (!field) {
       config.unknownArgs!.push(arg)
       continue
     }
 
-    if (field === 'canvasNoise' || field === 'audioNoise' || field === 'doNotTrack') {
-      (config as Record<string, unknown>)[field] = val === 'true'
-    } else if (field === 'resolution') {
+    if (field === 'resolution') {
       if (PRESET_RESOLUTIONS.includes(val)) {
         config.resolution = val
       } else {
@@ -146,6 +149,31 @@ export function deserialize(args: string[]): FingerprintConfig {
   }
 
   return config
+}
+
+function normalizePlatform(value: string): string {
+  return ['mac', 'darwin', 'osx'].includes(value.toLowerCase()) ? 'macos' : value.toLowerCase()
+}
+
+function preferredAcceptLanguages(lang: string): string {
+  const normalized = lang.trim()
+  const base = normalized.split('-', 1)[0]?.toLowerCase()
+  return base && base !== normalized.toLowerCase() ? `${normalized},${base}` : normalized
+}
+
+function isRetiredFingerprintKey(key: string): boolean {
+  return [
+    '--fingerprint-color-depth',
+    '--fingerprint-device-memory',
+    '--fingerprint-webgl-vendor',
+    '--fingerprint-webgl-renderer',
+    '--fingerprint-gpu-vendor',
+    '--fingerprint-gpu-renderer',
+    '--fingerprint-fonts',
+    '--fingerprint-do-not-track',
+    '--fingerprint-media-devices',
+    '--fingerprint-touch-points',
+  ].includes(key)
 }
 
 // 生成随机指纹种子（32位正整数）
@@ -166,185 +194,113 @@ export const FINGERPRINT_PRESETS: FingerprintPreset[] = [
   {
     id: 'win-chrome-office',
     name: 'Windows / Chrome / 办公',
-    description: '模拟国内办公室 Windows 用户，中文环境，1920x1080',
+    description: 'Windows、中文环境、1920x1080',
     config: {
       brand: 'Chrome',
       platform: 'windows',
       lang: 'zh-CN',
       timezone: 'Asia/Shanghai',
       resolution: '1920,1080',
-      colorDepth: '24',
       hardwareConcurrency: '8',
-      deviceMemory: '8',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'Intel',
-      webglRenderer: 'Intel(R) UHD Graphics 630',
-      fonts: 'Arial,Microsoft YaHei,SimSun,SimHei,Helvetica,Times New Roman',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: false,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'win-chrome-gaming',
     name: 'Windows / Chrome / 游戏主机',
-    description: '模拟高配游戏 PC，NVIDIA 显卡，2560x1440',
+    description: 'Windows、高核心数、2560x1440',
     config: {
       brand: 'Chrome',
       platform: 'windows',
       lang: 'en-US',
       timezone: 'America/New_York',
       resolution: '2560,1440',
-      colorDepth: '24',
       hardwareConcurrency: '16',
-      deviceMemory: '16',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'NVIDIA',
-      webglRenderer: 'NVIDIA GeForce RTX 3080',
-      fonts: 'Arial,Helvetica,Times New Roman,Courier New,Verdana',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: false,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'mac-chrome-designer',
     name: 'macOS / Chrome / 设计师',
-    description: '模拟 Mac 设计师用户，Apple GPU，Retina 分辨率',
+    description: 'macOS、中文环境、Retina 窗口尺寸',
     config: {
       brand: 'Chrome',
-      platform: 'mac',
+      platform: 'macos',
       lang: 'zh-CN',
       timezone: 'Asia/Shanghai',
       resolution: '2560,1440',
-      colorDepth: '30',
       hardwareConcurrency: '10',
-      deviceMemory: '16',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'Apple',
-      webglRenderer: 'Apple M2',
-      fonts: 'Arial,Helvetica,PingFang SC,Hiragino Sans GB,STHeiti,Times New Roman',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: true,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'win-edge-enterprise',
     name: 'Windows / Edge / 企业',
-    description: '模拟企业 Windows 用户，Edge 浏览器，标准配置',
+    description: 'Windows、Edge、中文企业环境',
     config: {
       brand: 'Edge',
       platform: 'windows',
       lang: 'zh-CN',
       timezone: 'Asia/Shanghai',
       resolution: '1366,768',
-      colorDepth: '24',
       hardwareConcurrency: '4',
-      deviceMemory: '4',
-      canvasNoise: true,
-      audioNoise: false,
-      webglVendor: 'Intel',
-      webglRenderer: 'Intel(R) HD Graphics 520',
-      fonts: 'Arial,Microsoft YaHei,Calibri,Segoe UI,Times New Roman',
-      webrtcPolicy: 'default_public_interface_only',
-      doNotTrack: false,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'win-chrome-us-user',
     name: 'Windows / Chrome / 美国用户',
-    description: '模拟美国普通用户，英文环境，AMD 显卡',
+    description: 'Windows、美国英语、洛杉矶时区',
     config: {
       brand: 'Chrome',
       platform: 'windows',
       lang: 'en-US',
       timezone: 'America/Los_Angeles',
       resolution: '1920,1080',
-      colorDepth: '24',
       hardwareConcurrency: '8',
-      deviceMemory: '8',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'AMD',
-      webglRenderer: 'AMD Radeon RX 6600',
-      fonts: 'Arial,Helvetica,Times New Roman,Courier New,Georgia',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: false,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'mac-safari-jp',
     name: 'macOS / Safari / 日本用户',
-    description: '模拟日本 Mac 用户，Safari 风格，日语环境',
+    description: 'macOS、Safari 品牌、日语环境',
     config: {
       brand: 'Safari',
-      platform: 'mac',
+      platform: 'macos',
       lang: 'ja-JP',
       timezone: 'Asia/Tokyo',
       resolution: '1440,900',
-      colorDepth: '24',
       hardwareConcurrency: '8',
-      deviceMemory: '8',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'Apple',
-      webglRenderer: 'Apple M1',
-      fonts: 'Arial,Helvetica,Hiragino Kaku Gothic ProN,Yu Gothic,Times New Roman',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: true,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'win-chrome-uk-office',
     name: 'Windows / Chrome / 英国-办公',
-    description: '模拟英国办公室 Windows 用户，英文环境 (en-GB)',
+    description: 'Windows、英国英语、伦敦时区',
     config: {
       brand: 'Chrome',
       platform: 'windows',
       lang: 'en-GB',
       timezone: 'Europe/London',
       resolution: '1920,1080',
-      colorDepth: '24',
       hardwareConcurrency: '8',
-      deviceMemory: '8',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'Intel',
-      webglRenderer: 'Intel(R) UHD Graphics 630',
-      fonts: 'Arial,Helvetica,Times New Roman,Courier New,Verdana',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: false,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
   {
     id: 'mac-chrome-us-edu',
     name: 'macOS / Chrome / 美国-教育',
-    description: '模拟美国大学教育网 Mac 用户，英文环境 (en-US)',
+    description: 'macOS、美国英语、纽约时区',
     config: {
       brand: 'Chrome',
-      platform: 'mac',
+      platform: 'macos',
       lang: 'en-US',
       timezone: 'America/New_York',
       resolution: '1440,900',
-      colorDepth: '24',
       hardwareConcurrency: '8',
-      deviceMemory: '8',
-      canvasNoise: true,
-      audioNoise: true,
-      webglVendor: 'Apple',
-      webglRenderer: 'Apple M1',
-      fonts: 'Arial,Helvetica,Times New Roman,Courier New,Georgia',
-      webrtcPolicy: 'disable_non_proxied_udp',
-      doNotTrack: false,
-      touchPoints: '0',
+      disableNonProxiedUDP: true,
     },
   },
 ]

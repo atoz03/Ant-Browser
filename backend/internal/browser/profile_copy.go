@@ -20,9 +20,7 @@ const (
 	copyAutomationTargetScreen   = "screen"
 	copyAutomationTargetHardware = "hardware"
 	copyAutomationTargetRender   = "render"
-	copyAutomationTargetFonts    = "fonts"
 	copyAutomationTargetNetwork  = "network"
-	copyAutomationTargetDevices  = "devices"
 )
 
 var profileCopyNameSuffixPattern = regexp.MustCompile(`[[:space:]]*(?:\([[:space:]]*副本[[:space:]]*\)|（副本）)[[:space:]]*(?:[0-9]{12})?$`)
@@ -320,36 +318,27 @@ func copyAutomationTargetArgPrefixes() map[string][]string {
 		},
 		copyAutomationTargetIdentity: {
 			"--fingerprint-brand",
+			"--fingerprint-brand-version",
 			"--fingerprint-platform",
+			"--fingerprint-platform-version",
 		},
 		copyAutomationTargetLocale: {
 			"--lang",
+			"--accept-lang",
 			"--timezone",
 		},
 		copyAutomationTargetScreen: {
 			"--window-size",
-			"--fingerprint-color-depth",
 		},
 		copyAutomationTargetHardware: {
 			"--fingerprint-hardware-concurrency",
-			"--fingerprint-device-memory",
 		},
 		copyAutomationTargetRender: {
-			"--fingerprint-canvas-noise",
-			"--fingerprint-webgl-vendor",
-			"--fingerprint-webgl-renderer",
-			"--fingerprint-audio-noise",
-		},
-		copyAutomationTargetFonts: {
-			"--fingerprint-fonts",
+			"--disable-spoofing",
 		},
 		copyAutomationTargetNetwork: {
-			"--webrtc-ip-handling-policy",
-			"--fingerprint-do-not-track",
-		},
-		copyAutomationTargetDevices: {
-			"--fingerprint-media-devices",
-			"--fingerprint-touch-points",
+			"--disable-non-proxied-udp",
+			"--force-webrtc-ip-handling-policy",
 		},
 	}
 }

@@ -66,9 +66,7 @@ export type BrowserProfileAutomationTarget =
   | 'screen'
   | 'hardware'
   | 'render'
-  | 'fonts'
   | 'network'
-  | 'devices'
 
 export interface BrowserProfileCopyOptions {
   mode: BrowserProfileCopyMode

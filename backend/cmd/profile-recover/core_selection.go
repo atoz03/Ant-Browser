@@ -6,7 +6,6 @@ import (
 	"ant-chrome/backend/internal/config"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -80,11 +79,15 @@ func pickCoreFromConfig(appRoot string, cores []config.BrowserCore, source strin
 
 func buildSelectedCore(appRoot, coreID, coreName, corePath, source string) selectedCore {
 	coreAbsPath := apppath.Resolve(appRoot, corePath)
+	binaryPath := ""
+	if resolved, _, ok := browser.FindCoreExecutable(coreAbsPath); ok {
+		binaryPath = resolved
+	}
 	return selectedCore{
 		CoreID:     strings.TrimSpace(coreID),
 		CoreName:   strings.TrimSpace(coreName),
 		CorePath:   strings.TrimSpace(corePath),
-		BinaryPath: filepath.Join(coreAbsPath, "chrome.exe"),
+		BinaryPath: binaryPath,
 		Source:     source,
 	}
 }

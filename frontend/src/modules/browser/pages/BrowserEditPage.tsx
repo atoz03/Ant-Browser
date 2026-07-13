@@ -98,7 +98,12 @@ export function BrowserEditPage() {
       if (isCreate) {
         const resolved = resolvePoolProxySelection('', '', proxyList)
         setProxyMode('pool')
-        setFormData((prev) => ({ ...prev, proxyId: resolved.proxyId || directProxyID, proxyConfig: '' }))
+        setFormData((prev) => ({
+          ...prev,
+          proxyId: resolved.proxyId || directProxyID,
+          proxyConfig: '',
+          fingerprintArgs: settings.defaultFingerprintArgs || [],
+        }))
         setLaunchArgsText(resolvedDefaultLaunchArgs.join('\n'))
         return
       }
@@ -285,7 +290,7 @@ export function BrowserEditPage() {
                 placeholder="留空自动生成"
                 className="flex-1"
               />
-              <Button variant="secondary" size="sm" onClick={handleOpenUserDataDir} title="在资源管理器中打开">
+              <Button variant="secondary" size="sm" onClick={handleOpenUserDataDir} title="在文件管理器中打开">
                 <FolderOpen className="w-4 h-4" />
               </Button>
             </div>

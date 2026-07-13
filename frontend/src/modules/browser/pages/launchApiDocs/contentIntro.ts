@@ -234,7 +234,8 @@ export const DOC_CORE_INTRO = `# 内核介绍
 \`\`\`text
 chrome/
   chrome-<version>/
-    chrome.exe
+    Chromium.app                 # macOS
+    chrome / chrome.exe          # Linux / Windows
     ...
 \`\`\`
 
@@ -245,7 +246,7 @@ chrome/
 指纹浏览器 -> 内核管理 -> 下载内核
 
 方式 B：手动下载
-下载 ZIP -> 解压到 chrome/<version>/ -> 回到内核管理确认识别
+下载 DMG / ZIP / TAR -> 在内核管理中导入 -> 确认识别
 \`\`\`
 
 ## 下载渠道
@@ -275,7 +276,7 @@ chrome/
 ## 自检
 
 \`\`\`text
-1. 目录下能看到 chrome.exe
+1. 目录下能看到 Chromium.app、chrome 或 chrome.exe
 2. 内核管理页能识别到该目录
 3. 实例绑定的是正确版本
 \`\`\`

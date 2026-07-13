@@ -79,9 +79,9 @@ func (a *App) emitBrowserInstanceUpdated(profile *BrowserProfile) {
 	runtime.EventsEmit(a.ctx, "browser:instance:updated", browserInstanceEventPayload(profile, false))
 }
 
-func (a *App) markProfileRunningLocked(profileId string, profile *BrowserProfile, cmd *exec.Cmd, pid int, debugPort int, debugReady bool, runtimeWarning string) {
+func (a *App) markProfileRunningLocked(profileId string, profile *BrowserProfile, cmd *exec.Cmd, pid int, debugPort int, debugReady bool, runtimeWarning string) <-chan struct{} {
 	if profile == nil {
-		return
+		return nil
 	}
 	profile.Running = true
 	profile.DebugPort = debugPort
@@ -93,9 +93,14 @@ func (a *App) markProfileRunningLocked(profileId string, profile *BrowserProfile
 	if cmd != nil {
 		a.browserMgr.BrowserProcesses[profileId] = cmd
 	}
+	var localeReady <-chan struct{}
+	if debugReady {
+		localeReady = a.startProfileLocaleOverride(profileId, debugPort, profile.FingerprintArgs)
+	}
 	if debugReady && a.launchServer != nil {
 		a.launchServer.SetActiveProfile(profile)
 	}
+	return localeReady
 }
 
 func (a *App) markProfileDebugReadyLocked(profile *BrowserProfile, debugPort int) {
@@ -106,6 +111,7 @@ func (a *App) markProfileDebugReadyLocked(profile *BrowserProfile, debugPort int
 	profile.DebugReady = true
 	profile.RuntimeWarning = ""
 	profile.LastError = ""
+	a.startProfileLocaleOverride(profile.ProfileId, debugPort, profile.FingerprintArgs)
 }
 
 func (a *App) setProfileDebugReady(profileId string, debugPort int) (*BrowserProfile, bool) {

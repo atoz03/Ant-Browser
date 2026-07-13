@@ -6,6 +6,7 @@ import { fetchBrowserProfileExtensionSettings, saveBrowserProfileExtensionSettin
 import { fetchGroups } from '../api/groups'
 import { fetchBrowserProfiles } from '../api/profiles'
 import { extensionHistoryActionLabel, formatExtensionTime, sameStringSet, type ExtensionHistoryRecord } from './extensionManagementUtils'
+import { openExternalURL } from '../../../shared/utils/openExternalURL'
 
 const UNGROUPED_PROFILE_GROUP_ID = '__ungrouped__'
 
@@ -267,7 +268,7 @@ export function ExtensionHistoryModal({ open, records, onClose, onPick, onClear 
                       使用
                     </Button>
                     {record.storeUrl ? (
-                      <Button type="button" size="sm" variant="secondary" onClick={() => window.open(record.storeUrl, '_blank', 'noopener,noreferrer')}>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => openExternalURL(record.storeUrl)}>
                         <ExternalLink className="h-4 w-4" />
                         商店页
                       </Button>
@@ -333,7 +334,7 @@ export function ManualInstallModal({ open, guide, files, loading, fileLoading, i
           <div className="space-y-2">
             <div className="text-sm font-medium text-[var(--color-text-primary)]">2. 推荐保存到这个文件夹</div>
             <div className="flex items-center gap-2">
-              <Input value={`${guide.downloadDir}\${guide.fileName}`} readOnly className="min-w-0 flex-1 font-mono text-xs" />
+              <Input value={`${guide.downloadDir}${guide.downloadDir.includes('\\') ? '\\' : '/'}${guide.fileName}`} readOnly className="min-w-0 flex-1 font-mono text-xs" />
               <Button type="button" variant="secondary" className="shrink-0 whitespace-nowrap px-3" onClick={() => copyText(guide.downloadDir, '文件夹路径')}>复制</Button>
               <Button type="button" variant="secondary" className="shrink-0 whitespace-nowrap px-3" onClick={onOpenDownloadDir}>打开</Button>
             </div>
@@ -361,7 +362,7 @@ export function ManualInstallModal({ open, guide, files, loading, fileLoading, i
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="secondary" onClick={onImportDirectory}>导入目录</Button>
               {guide.storeUrl ? (
-                <Button type="button" size="sm" variant="secondary" onClick={() => window.open(guide.storeUrl, '_blank', 'noopener,noreferrer')}>商店页</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => openExternalURL(guide.storeUrl)}>商店页</Button>
               ) : null}
             </div>
           </div>

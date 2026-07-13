@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { Button, FormItem, Input, Modal, toast } from '../../../../shared/components'
-import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime'
+import { openExternalURL } from '../../../../shared/utils/openExternalURL'
 import type { BrowserProxy } from '../../types'
 import type { CoreDownloadForm, CoreDownloadProgress } from '../coreManagement.types'
 
@@ -73,14 +73,14 @@ export function CoreDownloadModal({
           <Input
             value={form.url}
             onChange={e => setForm(prev => ({ ...prev, url: e.target.value }))}
-            placeholder="https://github.com/.../chrome-linux.tar.xz"
+            placeholder="https://github.com/.../browser-core.dmg / .zip / .tar.xz"
             disabled={progress !== null}
           />
           <div className="text-xs text-[var(--color-text-muted)] mt-2 flex items-center justify-between bg-[var(--color-bg-muted)] p-2 rounded">
             <span>推荐指纹内核: fingerprint-chromium</span>
             <button
               type="button"
-              onClick={() => BrowserOpenURL('https://github.com/adryfish/fingerprint-chromium/releases')}
+              onClick={() => openExternalURL('https://github.com/adryfish/fingerprint-chromium/releases')}
               className="text-[var(--color-accent)] hover:underline cursor-pointer font-medium"
             >
               前往 Releases 页面获取链接

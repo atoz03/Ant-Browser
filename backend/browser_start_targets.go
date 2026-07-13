@@ -160,6 +160,17 @@ func openBrowserStartTargets(debugPort int, targets []string) error {
 	return nil
 }
 
+// openBrowserStartTargetsWithLocaleOverride 始终创建新页面，避免对已存在的
+// about:blank 导航时绕过 Target.setAutoAttach 的暂停窗口。
+func openBrowserStartTargetsWithLocaleOverride(debugPort int, targets []string) error {
+	for _, url := range normalizeNonEmptyStrings(targets) {
+		if err := createBrowserStartTarget(debugPort, url); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a *App) setProfileRuntimeWarning(profileId string, debugPort int, warning string) (*BrowserProfile, bool) {
 	if a == nil || a.browserMgr == nil {
 		return nil, false

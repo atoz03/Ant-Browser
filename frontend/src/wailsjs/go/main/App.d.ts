@@ -90,6 +90,8 @@ export function BrowserCoreExtendedInfo():Promise<Array<browser.CoreExtendedInfo
 
 export function BrowserCoreImportLocal():Promise<config.BrowserCore>;
 
+export function BrowserCoreImportLocalDirectory():Promise<config.BrowserCore>;
+
 export function BrowserCoreList():Promise<Array<config.BrowserCore>>;
 
 export function BrowserCoreRedownload(arg1:string,arg2:string,arg3:string):Promise<void>;

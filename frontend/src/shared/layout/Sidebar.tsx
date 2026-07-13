@@ -57,7 +57,7 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        "bg-[var(--color-bg-surface)] flex flex-col transition-all duration-300 border-r border-[var(--color-border-default)]",
+        "bg-[var(--color-bg-surface)] flex flex-col transition-[width] duration-150 border-r border-[var(--color-border-default)]",
         sidebarCollapsed ? "w-16" : "w-60",
       )}
     >
